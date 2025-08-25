@@ -1,0 +1,89 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "proofs",
+                "type": "bytes[]"
+            }
+        ],
+        "name": "submitBatch",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getState",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "lastSubmittedHeight",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "lastFinalizedHeight",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalSubmissions",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes",
+                "name": "proof",
+                "type": "bytes"
+            }
+        ],
+        "name": "verifyProof",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "height",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "blockHash",
+                "type": "bytes32"
+            }
+        ],
+        "name": "BlockSubmitted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "height",
+                "type": "uint256"
+            }
+        ],
+        "name": "BlockFinalized",
+        "type": "event"
+    }
+]

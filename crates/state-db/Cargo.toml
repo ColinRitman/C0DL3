@@ -4,11 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rocksdb = "0.21"
-blake2 = "0.10"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
-tempfile = "3.0"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+# Database
+rocksdb = { workspace = true }
+
+# Merkle trees
+merkle_light = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+
+# Async runtime
+async-trait = "0.1"

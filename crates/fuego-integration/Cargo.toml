@@ -1,0 +1,25 @@
+[package]
+name = "fuego-integration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+hex = { workspace = true }
+bytes = { workspace = true }
+reqwest = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+ripemd = { workspace = true }
+keccak = { workspace = true }
+libp2p = { workspace = true }
+zksync-client = { path = "../zksync-client" }
+zk-proofs = { path = "../zk-proofs" }
+
+[build-dependencies]
+cc = "1.0"
+cmake = "0.1"

@@ -4,9 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-poseidon = "0.1"
-blake2 = "0.10"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+# Cryptographic libraries
+
+blake2 = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+
+# FFI for C++ integration
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"

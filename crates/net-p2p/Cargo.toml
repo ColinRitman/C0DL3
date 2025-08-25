@@ -4,16 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libp2p = { version = "0.53", features = [
-    "tcp",
-    "dns",
-    "identify",
-    "gossipsub",
-    "mdns",
-    "noise",
-    "yamux",
-    "tokio",
-] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
 async-trait = "0.1"
 futures-util = "0.3"
