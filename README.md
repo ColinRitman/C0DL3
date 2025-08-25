@@ -1,10 +1,10 @@
-# CODL3 - zkSync Hyperchains Implementation
+# C0DL3 - zkSync Hyperchains Implementation
 
-A privacy-first, dual-mining rollup node that bridges the Fuego (CryptoNote) blockchain with zkSync Hyperchains, featuring custom gas tokens, zero-knowledge proofs, and advanced validator economics.
+A privacy-first, dual-mining rollup node that bridges the Fuego L1 (CryptoNote) blockchain with zkSync Hyperchains, featuring custom gas token (HEAT), zkSTARK proofs, and advanced validator economics.
 
 ## 🎯 Overview
 
-CODL3 (COLD L3) is a revolutionary L3 rollup that combines:
+C0DL3 (COLD L3) is a revolutionary L3 rollup that combines:
 - **Fuego PoW Mining**: Traditional CryptoNote mining with XFG rewards
 - **zkSync Hyperchains**: ZK-based L3 with 1-hour finality
 - **Custom Gas Token (HEAT)**: Zero-inflation token on Ethereum L1
@@ -15,25 +15,25 @@ CODL3 (COLD L3) is a revolutionary L3 rollup that combines:
 
 ```
 L1 (Ethereum): HEAT Token + Bridge Coordinator
-├── zkSync Hyperchain L3: CODL3 Chain
-│   ├── Validator Contracts (800B HEAT staking)
+├── zkSync Hyperchain L3: C0DL3 Chain
+│   ├── Validator Contracts (80B HEAT staking)
 │   ├── ZK Proof Verifier (Winterfell integration)
-│   ├── Dual Mining Integration (Fuego + CODL3)
+│   ├── Merge Mining Integration (Fuego + C0DL3)
 │   └── Bridge Contracts (L3 ↔ L1)
 └── Fuego Blockchain: PoW Mining (XFG rewards)
 ```
 
 ## ✨ Key Features
 
-### 🔥 Dual Mining System
-- **Fuego Mining**: XFG block rewards + transaction fees
-- **CODL3 Mining**: HEAT gas fees + eldernode fees + ZK proof rewards
+### 🔥 Merge Mining
+- **Fuego Mining**: XFG block rewards + transaction fees + deposit fees
+- **C0DL3 Mining**: HEAT fees (gas) + ZK proof rewards
 - **Total Revenue**: ~$75-150/day per validator
 
 ### 🛡️ Advanced Security
 - **ZK Proofs**: Cryptographic security vs fraud proofs
 - **1-hour Finality**: vs 7-day challenge periods
-- **800B HEAT Staking**: Economic security for validators
+- **80B HEAT Staking**: Economic security by Elderfire validators
 - **Slashing Conditions**: Double signing, invalid state, inactivity
 
 ### 🔐 Privacy Features
@@ -42,8 +42,8 @@ L1 (Ethereum): HEAT Token + Bridge Coordinator
 - **Batch Privacy**: Multiple operations in single transaction
 
 ### 💰 Economic Model
-- **HEAT Token**: Zero inflation, minted only through XFG burns
-- **Validator Rewards**: Multiple income streams
+- **HEAT Token**: Zero added inflation, minted only through XFG burns
+- **Validator Rewards**: Multiple income streams (% of C0DL3 gas fees + $CD for staking)
 - **Gas Efficiency**: 70% cheaper than optimistic rollups
 
 ## 🚀 Quick Start
@@ -52,7 +52,7 @@ L1 (Ethereum): HEAT Token + Bridge Coordinator
 - Rust 1.70+
 - zkSync Era node (for L2)
 - Fuego daemon (for PoW mining)
-- 800B HEAT tokens (for validator staking)
+- 80B HEAT tokens (for validator staking)
 
 ### Installation
 
@@ -115,7 +115,7 @@ level = "info"
 
 ### Validator Economics
 ```
-HEAT Staking: 800B HEAT (no rewards)
+HEAT Staking: 80B HEAT (gas fee % & CD)
 Fuego Mining: $30-50/day
 CODL3 Gas Fees: $20-40/day
 Eldernode Fees: $10-25/day
@@ -124,20 +124,20 @@ Total Revenue: ~$75-150/day
 ```
 
 ### Token Economics
-- **HEAT**: Zero inflation, minted only through XFG burns
-- **XFG**: Standard Fuego PoW rewards
-- **CD**: Future governance token (Phase 2)
+- **HEAT**: Zero inflation, minted only by XFG collateral burn
+- **XFG**: Standard Fuego PoW rewards (+ reborn)
+- **CD**: COLDAO Governance token (Phase 2)
 
 ## 🔧 Development
 
 ### Project Structure
 ```
-CODL3-zksync/
+C0DL3-zksync/
 ├── crates/
 │   ├── node/              # Main node orchestration
 │   ├── zksync-client/     # zkSync interaction layer
 │   ├── zk-proofs/         # ZK proof generation/verification
-│   ├── fuego-integration/ # Fuego dual mining
+│   ├── fuego-integration/ # Fuego merge mining
 │   ├── bridge/            # L3 ↔ L1 bridge
 │   ├── consensus/         # BFT consensus
 │   ├── block-sync/        # Block synchronization
@@ -185,10 +185,10 @@ cargo bench
 - **Gas Token**: HEAT on Ethereum L1
 - **ZK Proofs**: Native support
 
-### Fuego Blockchain
-- **Algorithm**: CryptoNote
-- **Block Time**: 30 seconds
-- **Rewards**: XFG tokens
+### Fuego L1 Blockchain
+- **Algorithm**: CryptoNote UPX/2
+- **Block Time**: 480 seconds
+- **Rewards**: XFG coin
 - **Privacy**: Ring signatures
 
 ### Bridge System
@@ -232,16 +232,16 @@ cargo bench
 1. Deploy HEAT token on Ethereum L1
 2. Deploy zkSync Hyperchain L3
 3. Deploy validator staking contract
-4. Deploy dual mining coordinator
+4. Deploy merge mining coordinator
 
 ### Phase 2: Integration
 1. Deploy ZK proof verifier
 2. Deploy bridge contracts
 3. Deploy privacy layer
-4. Integrate Fuego daemon
+4. Integrate fuegod (L1 daemon)
 
 ### Phase 3: Testing & Launch
-1. Test dual mining with ZK proofs
+1. Test merge mining with ZK proofs
 2. Test bridge functionality
 3. Test validator economics
 4. Launch mainnet
@@ -261,28 +261,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Discord**: [Join our community](https://discord.gg/your-invite)
+- **Issues**: [GitHub Issues](https://github.com/colinritman/C0DL3/issues)
+- **Discord**: [Join XFG community](https://discord.gg/5UJcJJg)
 
 ## 🎯 Roadmap
 
-### Q1 2024
+### Q3 2025
 - [ ] Core zkSync integration
 - [ ] Dual mining implementation
 - [ ] Basic validator economics
 
-### Q2 2024
+### Q4 2025
 - [ ] Privacy features
 - [ ] Advanced ZK proofs
 - [ ] Bridge optimization
 
-### Q3 2024
+### Q1 2026
 - [ ] Mainnet launch
 - [ ] Governance system
 - [ ] Ecosystem expansion
 
----
-
-**CODL3 zkSync Hyperchains** - The future of privacy-first, dual-mining rollups! 🚀
 
 
+2017-2025 © Ξlderfire Privacy Council | USEXFG
