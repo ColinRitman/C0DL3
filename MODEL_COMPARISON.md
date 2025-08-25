@@ -1,4 +1,4 @@
-# CODL3 Model Comparison: Arbitrum Orbit vs zkSync Hyperchains
+# C0DL3 Model Comparison: Arbitrum Orbit vs zkSync Hyperchains
 
 ## **📊 Feature Comparison Matrix**
 
@@ -6,7 +6,7 @@
 |---------|----------------|-------------------|---------|
 | **Finality Time** | 7 days (challenge period) | 1 hour (ZK proofs) | 🏆 zkSync |
 | **Security Model** | Fraud proofs + AnyTrust | ZK proofs | 🏆 zkSync |
-| **Gas Token Support** | ✅ Native support | ✅ L1 deployment required | ⚖️ Tie |
+| **HEAT as Gas Token** | ✅ Native support | ✅ L1 deployment required | ⚖️ Tie |
 | **Cost per Verification** | ~$0.10 | ~$0.03 | 🏆 zkSync |
 | **ZK Proof Support** | STARK (Winterfell) | Native ZK | 🏆 zkSync |
 | **Privacy Features** | Custom implementation | Native ZK privacy | 🏆 zkSync |
@@ -65,9 +65,9 @@
 
 #### **Arbitrum Orbit Validator**
 ```
-HEAT Staking: 800B HEAT (no rewards)
+HEAT Staking: 80B HEAT (CD rewards)
 Fuego Mining: $30-50/day
-CODL3 Gas Fees: $15-30/day
+C0DL3 Gas Fees: $15-30/day
 Eldernode Fees: $5-15/day
 Block Fees: $5-10/day
 Total: ~$55-105/day
@@ -75,9 +75,9 @@ Total: ~$55-105/day
 
 #### **zkSync Hyperchains Validator**
 ```
-HEAT Staking: 800B HEAT (no rewards)
+HEAT Staking: 80B HEAT (CD rewards)
 Fuego Mining: $30-50/day
-CODL3 Gas Fees: $20-40/day
+C0DL3 Gas Fees: $20-40/day
 Eldernode Fees: $10-25/day
 ZK Proof Rewards: $15-35/day
 Total: ~$75-150/day
@@ -170,7 +170,7 @@ Community Support: Growing
 
 ## **🏆 Final Recommendation**
 
-### **For CODL3: zkSync Hyperchains**
+### **For C0DL3: zkSync Hyperchains**
 
 **Reasoning:**
 1. **Performance**: 1-hour finality vs 7 days is game-changing
@@ -192,6 +192,6 @@ Community Support: Growing
 - Strong testing and auditing
 - Community feedback integration
 
-**zkSync Hyperchains provides the best long-term value for CODL3 with superior performance, security, and economic incentives!**
+**zkSync Hyperchains provides the best long-term value for C0DL3 with superior performance, security, and economic incentives!**
 
 
