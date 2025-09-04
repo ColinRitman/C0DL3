@@ -1,0 +1,35 @@
+[package]
+name = "c0dl3-omni"
+version = "0.1.0"
+edition = "2021"
+authors = ["C0DL3 Team"]
+description = "C0DL3 Omni-Mixer: Privacy-First LP Protection for zkSync"
+license = "MIT"
+repository = "https://github.com/c0dl3/c0dl3-omni"
+
+[lib]
+name = "c0dl3_omni"
+path = "src/lib.rs"
+
+[[bin]]
+name = "c0dl3-omni"
+path = "src/main.rs"
+
+[[example]]
+name = "lp_privacy_demo"
+path = "examples/lp_privacy_demo.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4"] }
+hex = "0.4"
+rand = "0.8"
+serde_json = "1.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
