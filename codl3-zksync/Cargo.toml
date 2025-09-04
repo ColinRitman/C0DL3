@@ -1,0 +1,32 @@
+[package]
+name = "codl3-zksync"
+version = "0.1.0"
+edition = "2021"
+authors = ["CODL3 Team"]
+description = "CODL3 - zkSync Hyperchains Implementation"
+
+[[bin]]
+name = "codl3-zksync"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+libp2p = { version = "0.53", features = ["tokio", "macros"] }
+libp2p-core = "0.53"
+libp2p-swarm = "0.53"
+libp2p-tcp = "0.53"
+libp2p-noise = "0.53"
+libp2p-yamux = "0.53"
+libp2p-kad = "0.53"
+libp2p-mdns = "0.53"
+futures = "0.3"
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
