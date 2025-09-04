@@ -7,5 +7,3 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 net-p2p = { path = "../net-p2p" }
 tokio = { version = "1", features = ["rt-multi-thread","macros"] }
-libp2p = "0.53"
-futures = "0.3"

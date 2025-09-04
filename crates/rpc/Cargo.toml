@@ -4,23 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["sync"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
-tracing = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
 
-# Internal dependencies
-block-sync = { path = "../block-sync" }
-consensus = { path = "../consensus" }
-state-db = { path = "../state-db" }
-txpool = { path = "../txpool" }
-commitments = { path = "../commitments" }
-bridge = { path = "../bridge" }
-encryption = { path = "../encryption" }
-
-[lib]
-name = "rpc"
-path = "src/lib.rs"
+axum = { workspace = true }
+jsonrpc-core = { workspace = true }
+tower = { workspace = true }

@@ -1,175 +1,224 @@
-use crate::error::BridgeError;
+use crate::{BridgeState, Proof};
+use anyhow::Result;
+use ethers::{
+    prelude::*,
+    providers::{Http, Provider},
+    types::{Address, Bytes, U256},
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio::time::{Duration, Instant};
 
-/// Arbitrum proof submission
+/// Arbitrum bridge contract interface
+#[derive(Debug, Clone)]
+pub struct ArbitrumBridge {
+    provider: Arc<Provider<Http>>,
+    contract_address: Address,
+    wallet: LocalWallet,
+    contract: Contract<SignerMiddleware<Arc<Provider<Http>>, LocalWallet>>,
+}
+
+/// Arbitrum bridge contract events
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProofSubmission {
-    pub header_hash: [u8; 32],
-    pub proof_data: Vec<u8>,
-    pub timestamp: u64,
+pub struct BridgeEvent {
+    pub block_number: u64,
+    pub transaction_hash: String,
+    pub event_type: String,
+    pub data: serde_json::Value,
 }
 
 /// Arbitrum submission result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmissionResult {
-    pub transaction_hash: [u8; 32],
-    pub block_number: u64,
+    pub success: bool,
+    pub transaction_hash: String,
     pub gas_used: u64,
-    pub status: SubmissionStatus,
+    pub block_number: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SubmissionStatus {
-    Pending,
-    Confirmed,
-    Failed(String),
-}
+impl ArbitrumBridge {
+    /// Create a new Arbitrum bridge instance
+    pub async fn new(
+        rpc_url: String,
+        contract_address: Address,
+        private_key: String,
+    ) -> Result<Self> {
+        let provider = Arc::new(Provider::<Http>::try_from(rpc_url)?);
+        let wallet = private_key.parse::<LocalWallet>()?;
+        let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
-/// Arbitrum client for interacting with Arbitrum L3
-pub struct ArbitrumClient {
-    rpc_url: String,
-    contract_address: String,
-    submissions: Arc<RwLock<std::collections::HashMap<[u8; 32], SubmissionResult>>>,
-    last_submission_time: Arc<RwLock<Instant>>,
-}
+        // Bridge contract ABI (simplified)
+        let contract_abi = include_bytes!("../abi/bridge.json");
+        let abi: ethers::abi::Abi = serde_json::from_slice(contract_abi)?;
+        let contract = Contract::new(contract_address, abi, client.into());
 
-impl ArbitrumClient {
-    /// Create a new Arbitrum client
-    pub fn new(rpc_url: String, contract_address: String) -> Result<Self, BridgeError> {
         Ok(Self {
-            rpc_url,
+            provider,
             contract_address,
-            submissions: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            last_submission_time: Arc::new(RwLock::new(Instant::now())),
+            wallet,
+            contract,
         })
     }
-    
-    /// Submit a proof to Arbitrum
-    pub async fn submit_proof(&self, submission: ProofSubmission) -> Result<(), BridgeError> {
-        // In a real implementation, this would make an RPC call to Arbitrum
-        // For now, we'll simulate the submission
-        
-        // Simulate network delay
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        
-        // Create submission result
-        let result = SubmissionResult {
-            transaction_hash: [0u8; 32], // Would be actual tx hash
-            block_number: 12345, // Would be actual block number
-            gas_used: 100000, // Would be actual gas used
-            status: SubmissionStatus::Confirmed,
-        };
-        
-        // Store submission result
-        self.submissions.write().await.insert(submission.header_hash, result);
-        
-        // Update last submission time
-        *self.last_submission_time.write().await = Instant::now();
-        
-        println!("Proof submitted to Arbitrum: {:?}", submission.header_hash);
-        
-        Ok(())
+
+    /// Submit a batch of proofs to Arbitrum
+    pub async fn submit_batch(&self, proofs: Vec<Proof>) -> Result<SubmissionResult> {
+        // Convert proofs to the format expected by the contract
+        let proof_data: Vec<Bytes> = proofs
+            .into_iter()
+            .map(|proof| {
+                // Serialize proof to bytes
+                let proof_bytes = serde_json::to_vec(&proof)?;
+                Ok(Bytes::from(proof_bytes))
+            })
+            .collect::<Result<Vec<Bytes>>>()?;
+
+        // Call the bridge contract's submitBatch function
+        let call = self.contract.method::<Vec<ethers::types::Bytes>, ()>("submitBatch", proof_data)?;
+        let pending_tx = call.send().await?;
+        let receipt = pending_tx.await?;
+
+        let receipt = receipt.unwrap();
+        Ok(SubmissionResult {
+            success: receipt.status == Some(U64::from(1)),
+            transaction_hash: format!("{:?}", receipt.transaction_hash),
+            gas_used: receipt.gas_used.unwrap_or_default().as_u64(),
+            block_number: receipt.block_number.unwrap_or_default().as_u64(),
+        })
     }
-    
-    /// Get submission result
-    pub async fn get_submission_result(&self, header_hash: &[u8; 32]) -> Option<SubmissionResult> {
-        self.submissions.read().await.get(header_hash).cloned()
+
+    /// Get the latest bridge state from Arbitrum
+    pub async fn get_bridge_state(&self) -> Result<BridgeState> {
+        // Call the bridge contract's getState function
+        let call = self.contract.method("getState", ())?;
+        let state_data: (u64, u64, u64) = call.call().await?;
+
+        Ok(BridgeState {
+            last_fuego_height: state_data.0,
+            last_arbitrum_height: state_data.1,
+            total_submitted: state_data.2,
+            pending_proofs: 0,
+            last_submission: 0,
+        })
     }
-    
-    /// Get all submissions
-    pub async fn get_all_submissions(&self) -> Vec<SubmissionResult> {
-        self.submissions.read().await.values().cloned().collect()
+
+    /// Verify a proof on Arbitrum
+    pub async fn verify_proof(&self, proof: &Proof) -> Result<bool> {
+        // Call the bridge contract's verifyProof function
+        let proof_bytes = serde_json::to_vec(proof)?;
+        let call = self.contract.method("verifyProof", Bytes::from(proof_bytes))?;
+        let is_valid: bool = call.call().await?;
+
+        Ok(is_valid)
     }
-    
-    /// Get last submission time
-    pub async fn get_last_submission_time(&self) -> Instant {
-        *self.last_submission_time.read().await
+
+    /// Get bridge events from a specific block
+    pub async fn get_events(&self, from_block: u64, to_block: u64) -> Result<Vec<BridgeEvent>> {
+        // Get events from the bridge contract
+        let filter = Filter::new()
+            .from_block(from_block)
+            .to_block(to_block)
+            .address(self.contract_address);
+
+        let logs = self.provider.get_logs(&filter).await?;
+
+        let events: Vec<BridgeEvent> = logs
+            .into_iter()
+            .map(|log| BridgeEvent {
+                block_number: log.block_number.unwrap_or_default().as_u64(),
+                transaction_hash: format!("{:?}", log.transaction_hash),
+                event_type: "BridgeEvent".to_string(),
+                data: serde_json::to_value(log).unwrap_or_default(),
+            })
+            .collect();
+
+        Ok(events)
     }
-    
-    /// Check if Arbitrum is accessible
-    pub async fn is_accessible(&self) -> bool {
-        // In a real implementation, this would ping the RPC endpoint
-        // For now, we'll return true
-        true
+
+    /// Check if a block has been submitted to Arbitrum
+    pub async fn is_block_submitted(&self, height: u64) -> Result<bool> {
+        let state = self.get_bridge_state().await?;
+        Ok(height <= state.last_fuego_height)
     }
-    
-    /// Get contract address
-    pub fn get_contract_address(&self) -> &str {
-        &self.contract_address
+
+    /// Get the gas price for submissions
+    pub async fn get_gas_price(&self) -> Result<U256> {
+        let gas_price = self.provider.get_gas_price().await?;
+        Ok(gas_price)
     }
-    
-    /// Get RPC URL
-    pub fn get_rpc_url(&self) -> &str {
-        &self.rpc_url
+
+    /// Estimate gas for batch submission
+    pub async fn estimate_gas(&self, proofs: Vec<Proof>) -> Result<u64> {
+        let proof_data: Vec<Bytes> = proofs
+            .into_iter()
+            .map(|proof| {
+                let proof_bytes = serde_json::to_vec(&proof)?;
+                Ok(Bytes::from(proof_bytes))
+            })
+            .collect::<Result<Vec<Bytes>>>()?;
+
+        let call = self.contract.method::<Vec<ethers::types::Bytes>, ()>("submitBatch", proof_data)?;
+        let gas_estimate = call.estimate_gas().await?;
+
+        Ok(gas_estimate.as_u64())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn test_arbitrum_client_creation() {
-        let client = ArbitrumClient::new(
-            "http://localhost:8545".to_string(),
-            "0x1234567890123456789012345678901234567890".to_string(),
-        );
-        assert!(client.is_ok());
+/// Bridge contract ABI (placeholder - would be the actual ABI)
+pub const BRIDGE_ABI: &str = r#"
+[
+    {
+        "inputs": [
+            {
+                "internalType": "bytes[]",
+                "name": "proofs",
+                "type": "bytes[]"
+            }
+        ],
+        "name": "submitBatch",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getState",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "lastSubmittedHeight",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "lastFinalizedHeight",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalSubmissions",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes",
+                "name": "proof",
+                "type": "bytes"
+            }
+        ],
+        "name": "verifyProof",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
     }
-    
-    #[tokio::test]
-    async fn test_proof_submission() {
-        let client = ArbitrumClient::new(
-            "http://localhost:8545".to_string(),
-            "0x1234567890123456789012345678901234567890".to_string(),
-        ).unwrap();
-        
-        let submission = ProofSubmission {
-            header_hash: [1u8; 32],
-            proof_data: vec![1, 2, 3, 4],
-            timestamp: 1234567890,
-        };
-        
-        let result = client.submit_proof(submission).await;
-        assert!(result.is_ok());
-    }
-    
-    #[tokio::test]
-    async fn test_submission_result_retrieval() {
-        let client = ArbitrumClient::new(
-            "http://localhost:8545".to_string(),
-            "0x1234567890123456789012345678901234567890".to_string(),
-        ).unwrap();
-        
-        let header_hash = [1u8; 32];
-        let submission = ProofSubmission {
-            header_hash,
-            proof_data: vec![1, 2, 3, 4],
-            timestamp: 1234567890,
-        };
-        
-        // Submit proof
-        client.submit_proof(submission).await.unwrap();
-        
-        // Get result
-        let result = client.get_submission_result(&header_hash).await;
-        assert!(result.is_some());
-        
-        let submission_result = result.unwrap();
-        assert!(matches!(submission_result.status, SubmissionStatus::Confirmed));
-    }
-    
-    #[tokio::test]
-    async fn test_arbitrum_accessibility() {
-        let client = ArbitrumClient::new(
-            "http://localhost:8545".to_string(),
-            "0x1234567890123456789012345678901234567890".to_string(),
-        ).unwrap();
-        
-        let is_accessible = client.is_accessible().await;
-        assert!(is_accessible);
-    }
-}
+]
+"#;

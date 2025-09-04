@@ -4,23 +4,36 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+tempfile = { version = "3.0", optional = true }
+
+# Internal crates
 block-sync = { path = "../block-sync" }
+bridge = { path = "../bridge" }
+commitments = { path = "../commitments" }
 consensus = { path = "../consensus" }
+encryption = { path = "../encryption" }
+net-p2p = { path = "../net-p2p" }
+rpc = { path = "../rpc" }
 state-db = { path = "../state-db" }
 txpool = { path = "../txpool" }
-commitments = { path = "../commitments" }
-bridge = { path = "../bridge" }
-encryption = { path = "../encryption" }
-rpc = { path = "../rpc" }
+fuego-integration = { path = "../fuego-integration" }
+codl3-mining = { path = "../codl3-mining" }
+zksync-client = { path = "../zksync-client" }
+zk-proofs = { path = "../zk-proofs" }
 
-[lib]
-name = "node"
-path = "src/lib.rs"
+[dev-dependencies]
+tempfile = "3.0"
+
+# Configuration
+config = "0.13"
+clap = { version = "4.0", features = ["derive"] }
 
 [[bin]]
 name = "node"

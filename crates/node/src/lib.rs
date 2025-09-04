@@ -1,341 +1,327 @@
-use std::path::Path;
-use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
-use tokio::task::JoinHandle;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::RwLock;
+use tracing::{info, warn, error};
 
+use zksync_client::{ZkSyncClient, ZkSyncConfig};
+use zk_proofs::ZkProofProver;
+use fuego_integration::{ZkSyncDualMiner, FuegoConfig};
+
+pub mod config;
+
+// Core modules
 use block_sync::BlockSync;
-use bridge::{Bridge, BridgeConfig};
-use commitments::CommitmentEngine;
-use consensus::{Consensus, ConsensusConfig};
-use encryption::{EncryptionEngine, EncryptionConfig};
-use rpc::{RPCServer, RPCServerConfig};
-use state_db::RocksStateDB;
-use txpool::{TxPool, fee::SimpleFeeAlgorithm, priority::SimplePriorityCalculator};
+use bridge::Bridge;
+use consensus::Consensus;
+use net_p2p::P2PNetwork;
+use rpc::RPCServer;
+use state_db::StateDB;
+use txpool::TxPool;
 
-/// Node status information
-#[derive(Debug, Clone)]
-pub struct NodeStatus {
-    pub is_running: bool,
-    pub block_height: u64,
-    pub connected_peers: usize,
-    pub pending_transactions: usize,
-    pub consensus_state: String,
-    pub bridge_state: String,
-    pub uptime_seconds: u64,
-}
-
-/// Node configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
-    pub data_dir: String,
-    pub rpc_addr: String,
-    pub p2p_port: u16,
-    pub max_peers: usize,
-    pub tx_pool_size: usize,
-    pub enable_rpc: bool,
-    pub enable_p2p: bool,
-    pub enable_bridge: bool,
+    pub network: config::NetworkConfig,
+    pub rpc: config::RPCConfig,
+    pub bridge: config::BridgeConfig,
+    pub consensus: config::ConsensusConfig,
+    pub logging: config::LoggingConfig,
+    pub zksync: config::ZkSyncConfig,
+    pub fuego: config::FuegoConfig,
 }
 
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
-            data_dir: "./data".to_string(),
-            rpc_addr: "127.0.0.1:8545".to_string(),
-            p2p_port: 30303,
-            max_peers: 50,
-            tx_pool_size: 10000,
-            enable_rpc: true,
-            enable_p2p: true,
-            enable_bridge: true,
+            network: config::NetworkConfig::default(),
+            rpc: config::RPCConfig::default(),
+            bridge: config::BridgeConfig::default(),
+            consensus: config::ConsensusConfig::default(),
+            logging: config::LoggingConfig::default(),
+            zksync: config::ZkSyncConfig::default(),
+            fuego: config::FuegoConfig::default(),
         }
     }
 }
 
-/// Message types for inter-module communication
-#[derive(Debug)]
-pub enum NodeMessage {
-    BlockReceived(Vec<u8>),
-    TransactionReceived(Vec<u8>),
-    Shutdown,
-}
-
-/// The main COLD L3 Node that orchestrates all subsystems
-pub struct ColdL3Node {
+pub struct CODL3ZkSyncNode {
     config: NodeConfig,
-    status: Arc<RwLock<NodeStatus>>,
-    message_tx: mpsc::Sender<NodeMessage>,
-    message_rx: mpsc::Receiver<NodeMessage>,
+    shutdown_flag: Arc<AtomicBool>,
     
-    // Subsystems
-    state_db: Arc<RocksStateDB>,
-    commitment_engine: Arc<CommitmentEngine>,
+    // Core components
+    state_db: Arc<StateDB>,
+    txpool: Arc<TxPool>,
     block_sync: Arc<BlockSync>,
-    tx_pool: Arc<TxPool>,
     consensus: Arc<RwLock<Consensus>>,
-    bridge: Arc<RwLock<Bridge>>,
-    encryption: Arc<EncryptionEngine>,
-    rpc_server: Option<Arc<RPCServer>>,
+    bridge: Arc<Bridge>,
+    p2p_network: Arc<P2PNetwork>,
+    rpc_server: Arc<RPCServer>,
     
-    // Task handles
-    tasks: Vec<JoinHandle<Result<()>>>,
+    // zkSync specific components
+    zksync_client: Arc<ZkSyncClient>,
+    zk_prover: Arc<ZkProofProver>,
+    dual_miner: Arc<ZkSyncDualMiner>,
 }
 
-impl ColdL3Node {
-    /// Create a new COLD L3 Node instance
+impl CODL3ZkSyncNode {
     pub async fn new(config: NodeConfig) -> Result<Self> {
-        let (message_tx, message_rx) = mpsc::channel(1000);
+        info!("Initializing CODL3 zkSync Hyperchains node");
         
-        // Initialize state database
-        let state_db_path = Path::new(&config.data_dir).join("state");
-        let state_db = Arc::new(RocksStateDB::new(&state_db_path)?);
+        // Initialize shutdown flag
+        let shutdown_flag = Arc::new(AtomicBool::new(false));
         
-        // Initialize commitment engine
-        let commitment_engine = Arc::new(CommitmentEngine::new());
+        // Initialize core components
+        let state_db = Arc::new(StateDB::new(&config.network.data_dir)?);
+        let txpool = Arc::new(TxPool::new());
+        let block_sync = Arc::new(BlockSync::new());
+        let consensus = Arc::new(RwLock::new(Consensus::new()));
+        let bridge = Arc::new(Bridge::new());
+        let p2p_network = Arc::new(P2PNetwork::new(&config.network));
+        let rpc_server = Arc::new(RPCServer::new(&config.rpc));
         
-        // Initialize block sync
-        let block_sync = Arc::new(BlockSync::new()?);
-        
-        // Initialize transaction pool
-        let fee_algorithm = Box::new(SimpleFeeAlgorithm::new(1));
-        let priority_calculator = Box::new(SimplePriorityCalculator::new());
-        let tx_pool = Arc::new(TxPool::new(fee_algorithm, priority_calculator, config.tx_pool_size));
-        
-        // Initialize consensus
-        let consensus_config = ConsensusConfig::default();
-        let consensus = Arc::new(RwLock::new(Consensus::new(consensus_config)?));
-        
-        // Initialize bridge
-        let bridge_config = BridgeConfig::default();
-        let bridge = Arc::new(RwLock::new(Bridge::new(bridge_config)?));
-        
-        // Initialize encryption engine
-        let encryption_config = EncryptionConfig::default();
-        let encryption = Arc::new(EncryptionEngine::new(encryption_config)?);
-        
-        // Initialize RPC server if enabled
-        let rpc_server = if config.enable_rpc {
-            let rpc_config = RPCServerConfig::default();
-            Some(Arc::new(RPCServer::new(rpc_config)?))
-        } else {
-            None
+        // Initialize zkSync components
+        let zksync_config = ZkSyncConfig {
+            l1_rpc_url: config.zksync.l1_rpc_url.clone(),
+            l2_rpc_url: config.zksync.l2_rpc_url.clone(),
+            hyperchain_id: config.zksync.hyperchain_id,
+            gas_token_address: config.zksync.gas_token_address,
+            bridge_address: config.zksync.bridge_address,
+            staking_address: config.zksync.staking_address,
+            validator_address: config.zksync.validator_address,
         };
         
-        let status = Arc::new(RwLock::new(NodeStatus {
-            is_running: false,
-            block_height: 0,
-            connected_peers: 0,
-            pending_transactions: 0,
-            consensus_state: "initializing".to_string(),
-            bridge_state: "initializing".to_string(),
-            uptime_seconds: 0,
-        }));
+        let zksync_client = Arc::new(ZkSyncClient::new(zksync_config).await?);
+        let zk_prover = Arc::new(ZkProofProver::new().await?);
+        
+        // Initialize Fuego integration
+        let fuego_config = FuegoConfig {
+            rpc_url: config.fuego.rpc_url.clone(),
+            wallet_address: config.fuego.wallet_address.clone(),
+            mining_threads: config.fuego.mining_threads,
+            block_time: config.fuego.block_time,
+        };
+        
+        let dual_miner = Arc::new(ZkSyncDualMiner::new(
+            fuego_config,
+            zksync_config,
+        ).await?);
         
         Ok(Self {
             config,
-            status,
-            message_tx,
-            message_rx,
+            shutdown_flag,
             state_db,
-            commitment_engine,
+            txpool,
             block_sync,
-            tx_pool,
             consensus,
             bridge,
-            encryption,
+            p2p_network,
             rpc_server,
-            tasks: Vec::new(),
+            zksync_client,
+            zk_prover,
+            dual_miner,
         })
     }
     
-    /// Start the node and all its subsystems
-    pub async fn start(&mut self) -> Result<()> {
-        println!("Starting COLD L3 Node...");
+    pub async fn start(&self) -> Result<()> {
+        info!("Starting CODL3 zkSync Hyperchains node");
         
-        // Update status
-        {
-            let mut status = self.status.write().await;
-            status.is_running = true;
-            status.consensus_state = "starting".to_string();
-            status.bridge_state = "starting".to_string();
-        }
+        // Start all components
+        self.start_p2p_network().await?;
+        self.start_rpc_server().await?;
+        self.start_block_sync().await?;
+        self.start_consensus().await?;
+        self.start_bridge_monitoring().await?;
+        self.start_dual_mining().await?;
         
-        // Start consensus
-        {
-            let mut consensus = self.consensus.write().await;
-            consensus.start_consensus().await?;
-        }
-        println!("✓ Consensus started");
+        info!("CODL3 zkSync node started successfully");
         
-        // Start bridge
-        {
-            let mut bridge = self.bridge.write().await;
-            bridge.start().await?;
-        }
-        println!("✓ Bridge started");
+        // Keep the node running
+        self.wait_for_shutdown().await;
         
-        // Start RPC server if enabled
-        if let Some(_rpc_server) = &self.rpc_server {
-            // In a real implementation, this would start the actual RPC server
-            println!("✓ RPC server initialized (mock)");
-        }
-        
-        // Spawn subsystem tasks
-        self.spawn_subsystem_tasks().await?;
-        
-        // Update status
-        {
-            let mut status = self.status.write().await;
-            status.consensus_state = "running".to_string();
-            status.bridge_state = "running".to_string();
-        }
-        
-        println!("✓ COLD L3 Node started successfully");
         Ok(())
     }
     
-    /// Stop the node and all its subsystems
-    pub async fn stop(&mut self) -> Result<()> {
-        println!("Shutting down COLD L3 Node...");
+    async fn start_p2p_network(&self) -> Result<()> {
+        info!("Starting P2P network");
         
-        // Update status
-        {
-            let mut status = self.status.write().await;
-            status.is_running = false;
-            status.consensus_state = "stopping".to_string();
-            status.bridge_state = "stopping".to_string();
-        }
+        let shutdown_flag = self.shutdown_flag.clone();
+        let p2p_network = self.p2p_network.clone();
         
-        // Send shutdown message
-        let _ = self.message_tx.send(NodeMessage::Shutdown).await;
-        
-        // Stop bridge
-        {
-            let mut bridge = self.bridge.write().await;
-            bridge.stop().await?;
-        }
-        println!("✓ Bridge stopped");
-        
-        // Stop consensus
-        {
-            let mut consensus = self.consensus.write().await;
-            consensus.stop_consensus().await?;
-        }
-        println!("✓ Consensus stopped");
-        
-        // Wait for all tasks to complete
-        for task in self.tasks.drain(..) {
-            if let Err(e) = task.await {
-                eprintln!("Task error: {:?}", e);
+        tokio::spawn(async move {
+            if let Err(e) = p2p_network.start().await {
+                error!("P2P network error: {}", e);
             }
-        }
+            
+            // Keep running until shutdown
+            while !shutdown_flag.load(Ordering::SeqCst) {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        });
         
-        // Update status
-        {
-            let mut status = self.status.write().await;
-            status.consensus_state = "stopped".to_string();
-            status.bridge_state = "stopped".to_string();
-        }
-        
-        println!("✓ COLD L3 Node stopped");
         Ok(())
     }
     
-    /// Get current node status
-    pub async fn get_status(&self) -> NodeStatus {
-        self.status.read().await.clone()
+    async fn start_rpc_server(&self) -> Result<()> {
+        info!("Starting RPC server on {}", self.config.rpc.bind_address);
+        
+        let shutdown_flag = self.shutdown_flag.clone();
+        let rpc_server = self.rpc_server.clone();
+        
+        tokio::spawn(async move {
+            if let Err(e) = rpc_server.start().await {
+                error!("RPC server error: {}", e);
+            }
+            
+            // Keep running until shutdown
+            while !shutdown_flag.load(Ordering::SeqCst) {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        });
+        
+        Ok(())
     }
     
-    /// Spawn all subsystem tasks
-    async fn spawn_subsystem_tasks(&mut self) -> Result<()> {
-        let _message_tx = self.message_tx.clone();
-        let status = self.status.clone();
+    async fn start_block_sync(&self) -> Result<()> {
+        info!("Starting block synchronization");
         
-        // Block sync task
-        let _block_sync = self.block_sync.clone();
-        let task = tokio::spawn(async move {
-            println!("Block sync task started");
-            // TODO: Implement actual block syncing logic
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                // Simulate block sync activity
-            }
-        });
-        self.tasks.push(task);
+        let shutdown_flag = self.shutdown_flag.clone();
+        let block_sync = self.block_sync.clone();
+        let state_db = self.state_db.clone();
         
-        // Transaction pool task
-        let _tx_pool = self.tx_pool.clone();
-        let task = tokio::spawn(async move {
-            println!("Transaction pool task started");
-            // TODO: Implement transaction processing logic
+        tokio::spawn(async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                // Simulate transaction processing
-            }
-        });
-        self.tasks.push(task);
-        
-        // State database task
-        let _state_db = self.state_db.clone();
-        let task = tokio::spawn(async move {
-            println!("State database task started");
-            // TODO: Implement state management logic
-            loop {
+                if shutdown_flag.load(Ordering::SeqCst) {
+                    break;
+                }
+                
+                // Sync blocks from Fuego
+                if let Err(e) = block_sync.sync_blocks(&state_db).await {
+                    error!("Block sync error: {}", e);
+                }
+                
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                // Simulate state management
             }
         });
-        self.tasks.push(task);
-        
-        // Commitment engine task
-        let _commitment_engine = self.commitment_engine.clone();
-        let task = tokio::spawn(async move {
-            println!("Commitment engine task started");
-            // TODO: Implement commitment calculations
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-                // Simulate commitment calculations
-            }
-        });
-        self.tasks.push(task);
-        
-        // Message processing task
-        let task = tokio::spawn(async move {
-            println!("Message processing task started");
-            // TODO: Implement message processing logic
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                // Process messages from other tasks
-            }
-        });
-        self.tasks.push(task);
-        
-        // Status update task
-        let task = tokio::spawn(async move {
-            let start_time = std::time::Instant::now();
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                let mut status = status.write().await;
-                status.uptime_seconds = start_time.elapsed().as_secs();
-            }
-        });
-        self.tasks.push(task);
         
         Ok(())
     }
     
-    /// Run the main event loop
-    pub async fn run(&mut self) -> Result<()> {
-        println!("Node is running. Press Ctrl+C to stop.");
+    async fn start_consensus(&self) -> Result<()> {
+        info!("Starting consensus mechanism");
         
-        // Wait for shutdown signal
-        tokio::signal::ctrl_c().await?;
+        let shutdown_flag = self.shutdown_flag.clone();
+        let consensus = self.consensus.clone();
         
-        // Stop the node
-        self.stop().await?;
+        tokio::spawn(async move {
+            loop {
+                if shutdown_flag.load(Ordering::SeqCst) {
+                    break;
+                }
+                
+                // Run consensus
+                {
+                    let mut consensus_guard = consensus.write().await;
+                    if let Err(e) = consensus_guard.run_consensus().await {
+                        error!("Consensus error: {}", e);
+                    }
+                }
+                
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            }
+        });
         
         Ok(())
+    }
+    
+    async fn start_bridge_monitoring(&self) -> Result<()> {
+        info!("Starting bridge monitoring");
+        
+        let shutdown_flag = self.shutdown_flag.clone();
+        let bridge = self.bridge.clone();
+        let zksync_client = self.zksync_client.clone();
+        
+        tokio::spawn(async move {
+            loop {
+                if shutdown_flag.load(Ordering::SeqCst) {
+                    break;
+                }
+                
+                // Monitor bridge events
+                if let Err(e) = bridge.monitor_events(&zksync_client).await {
+                    error!("Bridge monitoring error: {}", e);
+                }
+                
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
+        });
+        
+        Ok(())
+    }
+    
+    async fn start_dual_mining(&self) -> Result<()> {
+        info!("Starting dual mining (Fuego + CODL3)");
+        
+        let shutdown_flag = self.shutdown_flag.clone();
+        let dual_miner = self.dual_miner.clone();
+        
+        tokio::spawn(async move {
+            if let Err(e) = dual_miner.start_dual_mining().await {
+                error!("Dual mining error: {}", e);
+            }
+            
+            // Keep running until shutdown
+            while !shutdown_flag.load(Ordering::SeqCst) {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        });
+        
+        Ok(())
+    }
+    
+    async fn wait_for_shutdown(&self) {
+        info!("Waiting for shutdown signal");
+        
+        // Wait for shutdown flag
+        while !self.shutdown_flag.load(Ordering::SeqCst) {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+        
+        info!("Shutdown signal received");
+    }
+    
+    pub async fn stop(&self) -> Result<()> {
+        info!("Stopping CODL3 zkSync node");
+        
+        // Set shutdown flag
+        self.shutdown_flag.store(true, Ordering::SeqCst);
+        
+        // Stop dual mining
+        self.dual_miner.stop_mining().await?;
+        
+        info!("CODL3 zkSync node stopped");
+        Ok(())
+    }
+    
+    // Getter methods for components
+    pub fn get_zksync_client(&self) -> Arc<ZkSyncClient> {
+        self.zksync_client.clone()
+    }
+    
+    pub fn get_zk_prover(&self) -> Arc<ZkProofProver> {
+        self.zk_prover.clone()
+    }
+    
+    pub fn get_dual_miner(&self) -> Arc<ZkSyncDualMiner> {
+        self.dual_miner.clone()
+    }
+    
+    pub fn get_state_db(&self) -> Arc<StateDB> {
+        self.state_db.clone()
+    }
+    
+    pub fn get_txpool(&self) -> Arc<TxPool> {
+        self.txpool.clone()
     }
 }
 
@@ -346,27 +332,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_creation() {
         let config = NodeConfig::default();
-        let node = ColdL3Node::new(config).await;
+        let node = CODL3ZkSyncNode::new(config).await;
         assert!(node.is_ok());
-    }
-    
-    #[tokio::test]
-    async fn test_node_start_stop() {
-        let config = NodeConfig::default();
-        let mut node = ColdL3Node::new(config).await.unwrap();
-        
-        // Start the node
-        assert!(node.start().await.is_ok());
-        
-        // Check status
-        let status = node.get_status().await;
-        assert!(status.is_running);
-        
-        // Stop the node
-        assert!(node.stop().await.is_ok());
-        
-        // Check status
-        let status = node.get_status().await;
-        assert!(!status.is_running);
     }
 }
