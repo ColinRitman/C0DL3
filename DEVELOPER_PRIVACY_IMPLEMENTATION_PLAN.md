@@ -10,6 +10,24 @@ This guide provides a step-by-step implementation plan for integrating **user-le
 
 **No block-level privacy** - we focus only on individual user benefits.
 
+## 🚀 **Why We Use zkSync's Boojum for User-Level Privacy**
+
+### **✅ Key Benefits of Boojum Integration**
+
+1. **Production-Ready STARKs** - Battle-tested in zkSync Era mainnet
+2. **Optimized Performance** - Designed for high-throughput user-level privacy
+3. **Rust Implementation** - Perfect match for our tech stack
+4. **Consumer Hardware** - Runs on 16GB GPU RAM, accessible for users
+5. **Security Audited** - Production-grade security for user privacy
+6. **Cost Efficient** - Lower verification costs for user-level proofs
+
+### **🎯 Perfect for Our User-Level Privacy Goals**
+
+- **Transaction Validity Proofs** - Prove transactions are valid without revealing user details
+- **Amount Range Proofs** - Hide exact amounts while proving they're valid
+- **Balance Consistency Proofs** - Prove sufficient balance without revealing exact balance
+- **Fast Verification** - Quick verification of user-level privacy proofs
+
 ## 📋 **Implementation Phases**
 
 ### **Phase 1: Core Privacy Infrastructure (Week 1-2)**
@@ -44,43 +62,44 @@ pub use address_encryption::AddressEncryption;
 pub use timing_privacy::TimingPrivacy;
 ```
 
-#### **1.2 Implement STARK Proof System**
+#### **1.2 Implement STARK Proof System (Using zkSync Boojum)**
 ```rust
 // File: src/privacy/stark_proofs.rs
-use winter_crypto::{hashers::Blake3_256, RandomCoin};
-use winter_math::FieldElement;
-use winter_prover::{ProofOptions, Prover};
+use boojum::stark::StarkProofSystem;
+use boojum::field::Field;
 use anyhow::Result;
 
 pub struct StarkProofSystem {
-    proof_options: ProofOptions,
-    hash_function: Blake3_256,
+    boojum_prover: boojum::stark::StarkProver,
 }
 
 impl StarkProofSystem {
     pub fn new() -> Self {
         Self {
-            proof_options: ProofOptions::default(),
-            hash_function: Blake3_256::new(),
+            boojum_prover: boojum::stark::StarkProver::new(),
         }
     }
     
-    // Generate STARK proof for transaction validity (user-level)
-    pub fn prove_transaction_validity(&self, amount: u64, sender_balance: u64) -> Result<StarkProof, Error> {
-        // Prove: sender has sufficient balance for transaction
-        // Prove: amount is within valid range (0 < amount <= sender_balance)
+    // Generate STARK proof for transaction validity (user-level) using Boojum
+    pub fn prove_transaction_validity(&self, amount: u64, sender_balance: u64) -> Result<StarkProof> {
+        // Use Boojum's optimized STARKs to prove:
+        // - Sender has sufficient balance for transaction
+        // - Amount is within valid range (0 < amount <= sender_balance)
         // This protects user privacy by proving validity without revealing exact amounts
+        self.boojum_prover.prove_transaction_validity(amount, sender_balance)
     }
     
-    // Generate STARK proof for amount range (user-level)
-    pub fn prove_amount_range(&self, amount: u64, min_amount: u64, max_amount: u64) -> Result<StarkProof, Error> {
-        // Prove: min_amount <= amount <= max_amount
+    // Generate STARK proof for amount range (user-level) using Boojum
+    pub fn prove_amount_range(&self, amount: u64, min_amount: u64, max_amount: u64) -> Result<StarkProof> {
+        // Use Boojum's efficient STARKs to prove: min_amount <= amount <= max_amount
         // This hides the exact amount while proving it's valid
+        self.boojum_prover.prove_amount_range(amount, min_amount, max_amount)
     }
     
-    // Verify STARK proof
-    pub fn verify_proof(&self, proof: &StarkProof, public_inputs: &[FieldElement]) -> Result<bool, Error> {
-        // Verify the STARK proof without revealing private inputs
+    // Verify STARK proof using Boojum
+    pub fn verify_proof(&self, proof: &StarkProof, public_inputs: &[Field]) -> Result<bool> {
+        // Use Boojum's optimized verification without revealing private inputs
+        self.boojum_prover.verify_proof(proof, public_inputs)
     }
 }
 ```
@@ -705,8 +724,8 @@ async fn get_private_transaction(
 ```toml
 [dependencies]
 # Existing dependencies...
-# User-level privacy dependencies
-winter-crypto = "0.8"      # STARKs for user-level proofs
+# User-level privacy dependencies (Using zkSync Boojum)
+boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }  # zkSync's STARK prover
 bulletproofs = "4.0"       # Range proofs for amount privacy
 chacha20poly1305 = "0.10"  # Address/timing encryption
 curve25519-dalek = "4.0"   # Elliptic curves for commitments
