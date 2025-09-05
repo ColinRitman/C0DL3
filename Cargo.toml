@@ -50,6 +50,7 @@ curve25519-dalek = "4.0"   # Elliptic curves for commitments
 rand = "0.8"               # Cryptographically secure random number generation
 thiserror = "1.0"          # Error handling for privacy operations
 
+
 # Production STARK Proof Systems
 # Boojum STARK prover (zkSync's production STARK system)
 boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
@@ -65,5 +66,3 @@ arkworks = { version = "0.4", features = ["std"] }  # Advanced cryptographic pri
 bellman = "0.7"           # Zero-knowledge proof systems
 merlin = "3.0"            # Transcript for zero-knowledge proofs
 poseidon-hash = "0.1"     # Poseidon hash function for STARKs
-
-
