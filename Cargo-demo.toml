@@ -1,0 +1,16 @@
+[package]
+name = "visual-cli-demo"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "visual-cli-demo"
+path = "demo_visual_cli.rs"
+
+[dependencies]
+tokio = { version = "1.47.1", features = ["full"] }
+colored = "2.0"
+indicatif = "0.17"
+spinners = "4.1"
+console = "0.15"
+dialoguer = "0.11"

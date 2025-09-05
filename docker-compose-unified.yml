@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  unified-daemon:
+    build: .
+    container_name: c0dl3-unified-daemon
+    ports:
+      - "9944:9944"  # RPC
+      - "30333:30333"  # P2P
+    environment:
+      # C0DL3 Configuration
+      - LOG_LEVEL=info
+      - DATA_DIR=/app/data
+      - P2P_PORT=30333
+      - RPC_PORT=9944
+      - TARGET_BLOCK_TIME=30
+      
+      # zkSync Configuration
+      - L1_RPC_URL=http://host.docker.internal:8545
+      - L2_RPC_URL=http://host.docker.internal:3050
+      - HYPERCHAIN_ID=324
+      - VALIDATOR_ADDRESS=0x2233445566778899001122334455667788990011
+      - BRIDGE_ADDRESS=0x3344556677889900112233445566778899001122
+      - L1_CONTRACT_ADDRESS=0x4455667788990011223344556677889900112233
+      - BATCH_SIZE=100
+      - BATCH_TIMEOUT=300
+      
+      # Merge Mining Configuration
+      - MERGE_MINING_ENABLED=true
+      - FUEGO_RPC_URL=http://host.docker.internal:8546
+      - FUEGO_WALLET_ADDRESS=0x1111111111111111111111111111111111111111
+      - AUX_POW_TAG=C0DL3-MERGE-MINING
+      - MERGE_MINING_INTERVAL=30
+      - CN_UPX2_DIFFICULTY=1000
+      - FUEGO_BLOCK_TIME=480
+      - FUEGO_BINARY_PATH=/app/bin/fuegod
+      - FUEGO_DATA_DIR=/app/fuego-data
+      - FUEGO_P2P_PORT=10808
+      
+      # Unified Daemon Mode
+      - UNIFIED_DAEMON=true
+      
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./fuego-data:/app/fuego-data
+      - ./bin:/app/bin
+    networks:
+      - c0dl3-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Fuego L1 node for testing
+  fuego-l1:
+    image: fuego-node:latest
+    container_name: fuego-l1-node
+    ports:
+      - "8546:8546"  # RPC
+      - "10808:10808"  # P2P
+    environment:
+      - FUEGO_NETWORK=testnet
+      - RPC_PORT=8546
+      - P2P_PORT=10808
+      - BLOCK_TARGET_TIME=480
+    volumes:
+      - ./fuego-data:/fuego/data
+    networks:
+      - c0dl3-network
+    restart: unless-stopped
+    profiles:
+      - fuego
+
+networks:
+  c0dl3-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:
+  fuego-data:

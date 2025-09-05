@@ -1,0 +1,45 @@
+{
+  "network": {
+    "data_dir": "./data",
+    "p2p_port": 30333,
+    "listen_addr": "0.0.0.0",
+    "bootstrap_peers": [
+      "/ip4/127.0.0.1/tcp/30334/p2p/QmBootstrap1",
+      "/ip4/127.0.0.1/tcp/30335/p2p/QmBootstrap2"
+    ],
+    "max_peers": 50
+  },
+  "rpc": {
+    "port": 9944,
+    "host": "127.0.0.1",
+    "cors_origins": ["*"],
+    "max_connections": 100
+  },
+  "mining": {
+    "enabled": true,
+    "target_block_time": 30,
+    "max_nonce": 1000000000000000000,
+    "difficulty_adjustment_blocks": 10
+  },
+  "zksync": {
+    "l1_rpc_url": "http://localhost:8545",
+    "l2_rpc_url": "http://localhost:3050",
+    "hyperchain_id": 324,
+    "validator_address": "0x2233445566778899001122334455667788990011",
+    "bridge_address": "0x3344556677889900112233445566778899001122",
+    "l1_contract_address": "0x4455667788990011223344556677889900112233",
+    "batch_size": 100,
+    "batch_timeout": 300,
+    "l1_batch_commitment": true,
+    "priority_ops_enabled": true,
+    "zk_proof_generation": true
+  },
+  "merge_mining": {
+    "enabled": true,
+    "fuego_rpc_url": "http://localhost:8546",
+    "fuego_wallet_address": "0x1111111111111111111111111111111111111111",
+    "aux_pow_tag": "C0DL3-MERGE-MINING",
+    "merge_mining_interval": 30,
+    "cn_upx2_difficulty": 1000
+  }
+}

@@ -1,0 +1,61 @@
+# Rust
+/target/
+**/target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data directories
+/data/
+/fuego-data/
+/bin/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Test artifacts
+/test-results/
+/coverage/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules (if any)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Backup files
+*.bak
+*.backup
+*.orig
