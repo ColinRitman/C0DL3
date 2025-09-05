@@ -10,9 +10,25 @@ This guide provides a step-by-step implementation plan for integrating **user-le
 
 **No block-level privacy** - we focus only on individual user benefits.
 
-## 🚀 **Why We Use zkSync's Boojum for User-Level Privacy**
+## 🚀 **Hybrid STARK Strategy: xfgwinterfell + Boojum**
 
-### **✅ Key Benefits of Boojum Integration**
+### **📋 STARK Usage Strategy**
+
+We use **two different STARK systems** for different purposes:
+
+#### **1. xfgwinterfell STARKs (Existing)**
+- **Purpose**: COLD/HEAT mint process and C0DL3 protocol operations
+- **Scope**: Core blockchain functionality, treasury operations, COLDAO governance
+- **Status**: Already implemented and working
+- **Keep**: ✅ Maintain existing xfgwinterfell implementation
+
+#### **2. zkSync Boojum STARKs (New)**
+- **Purpose**: User-level privacy features only
+- **Scope**: Transaction amount privacy, address privacy, timing privacy
+- **Status**: New implementation for privacy features
+- **Add**: ✅ Implement Boojum for user privacy
+
+### **✅ Key Benefits of Boojum for User-Level Privacy**
 
 1. **Production-Ready STARKs** - Battle-tested in zkSync Era mainnet
 2. **Optimized Performance** - Designed for high-throughput user-level privacy
@@ -724,8 +740,11 @@ async fn get_private_transaction(
 ```toml
 [dependencies]
 # Existing dependencies...
+# Existing STARK system (keep for COLD/HEAT mint process)
+# xfgwinterfell = "..."  # Already implemented for C0DL3 protocol
+
 # User-level privacy dependencies (Using zkSync Boojum)
-boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }  # zkSync's STARK prover
+boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }  # zkSync's STARK prover for user privacy
 bulletproofs = "4.0"       # Range proofs for amount privacy
 chacha20poly1305 = "0.10"  # Address/timing encryption
 curve25519-dalek = "4.0"   # Elliptic curves for commitments
@@ -748,9 +767,15 @@ thiserror = "1.0"
 | Phase 5: RPC & Testing | 2 weeks | HIGH | MEDIUM | NO | API endpoints + testing |
 | **Total** | **10 weeks** | - | - | - | **User-level privacy only** |
 
-## 🎯 **STARKs Usage Strategy (User-Level Privacy Only)**
+## 🎯 **Hybrid STARKs Usage Strategy**
 
-### **Where We Use STARKs (User-Level Privacy)**
+### **xfgwinterfell STARKs (Existing - Keep)**
+1. **COLD/HEAT Mint Process** - Core C0DL3 protocol operations
+2. **Treasury Operations** - COLDAO governance and treasury management
+3. **Core Blockchain Functionality** - Block validation and consensus
+4. **Protocol-Level Proofs** - C0DL3-specific cryptographic operations
+
+### **Boojum STARKs (New - User-Level Privacy Only)**
 1. **Transaction Validity Proofs** - Prove transaction is valid without revealing user details
 2. **Amount Range Proofs** - Prove amount is within valid range (hides exact amount)
 3. **Balance Consistency Proofs** - Prove sender has sufficient balance (hides exact balance)
@@ -769,34 +794,56 @@ thiserror = "1.0"
 
 ## 🔧 **Development Guidelines**
 
-### **1. Code Organization (User-Level Privacy Only)**
+### **1. Code Organization (Hybrid STARK Architecture)**
 ```
-src/privacy/
-├── mod.rs                 # Privacy module exports
-├── user_privacy.rs        # User privacy manager
-├── stark_proofs.rs        # STARK system (user-level)
-├── amount_commitments.rs  # Amount commitments
-├── address_encryption.rs  # Address encryption
-├── timing_privacy.rs      # Timing encryption
-└── tests/                 # Test suite
-    ├── user_privacy_tests.rs
-    ├── amount_privacy_tests.rs
-    ├── address_privacy_tests.rs
-    └── integration_tests.rs
+src/
+├── privacy/               # User-level privacy (Boojum STARKs)
+│   ├── mod.rs            # Privacy module exports
+│   ├── user_privacy.rs   # User privacy manager
+│   ├── stark_proofs.rs   # Boojum STARK system (user-level)
+│   ├── amount_commitments.rs  # Amount commitments
+│   ├── address_encryption.rs  # Address encryption
+│   ├── timing_privacy.rs      # Timing encryption
+│   └── tests/                 # Privacy test suite
+│       ├── user_privacy_tests.rs
+│       ├── amount_privacy_tests.rs
+│       ├── address_privacy_tests.rs
+│       └── integration_tests.rs
+├── protocol/             # C0DL3 protocol (xfgwinterfell STARKs)
+│   ├── cold_heat.rs      # COLD/HEAT mint process
+│   ├── treasury.rs       # Treasury operations
+│   ├── consensus.rs      # Core blockchain functionality
+│   └── stark_proofs.rs  # xfgwinterfell STARK system (protocol-level)
+└── ...
 ```
 
-### **2. Testing Strategy (User-Level Privacy)**
-- **Unit Tests** - Test individual user privacy components
-- **Integration Tests** - Test user privacy with core zkC0DL3
-- **Performance Tests** - Test STARK proof generation/verification
-- **Security Tests** - Test user privacy guarantees
-- **No Block Tests** - Focus only on user-level privacy
+### **2. Separation of Concerns**
 
-### **3. Performance Considerations**
-- **STARK Proof Generation** - Optimize for user-level proofs
-- **Proof Verification** - Optimize for user-level verification
-- **Memory Usage** - Minimize memory footprint for user privacy
-- **Storage** - Efficient storage for user privacy data
+#### **xfgwinterfell STARKs (Protocol Layer)**
+- **Scope**: Core C0DL3 protocol operations
+- **Responsibilities**: COLD/HEAT minting, treasury, consensus
+- **Integration**: Existing implementation, no changes needed
+- **Testing**: Existing test suite continues to work
+
+#### **Boojum STARKs (Privacy Layer)**
+- **Scope**: User-level privacy features only
+- **Responsibilities**: Transaction privacy, amount privacy, address privacy
+- **Integration**: New implementation, separate from protocol layer
+- **Testing**: New test suite for privacy features
+
+### **3. Testing Strategy (Hybrid Architecture)**
+- **Protocol Tests** - Test existing xfgwinterfell STARKs (COLD/HEAT)
+- **Privacy Tests** - Test new Boojum STARKs (user-level privacy)
+- **Integration Tests** - Test privacy features with core zkC0DL3
+- **Performance Tests** - Test both STARK systems independently
+- **Security Tests** - Test privacy guarantees and protocol security
+
+### **4. Performance Considerations**
+- **Protocol STARKs** - Existing xfgwinterfell performance (no changes)
+- **Privacy STARKs** - Optimize Boojum for user-level proofs
+- **Proof Verification** - Optimize both systems independently
+- **Memory Usage** - Minimize memory footprint for both systems
+- **Storage** - Efficient storage for both protocol and privacy data
 
 ## 🚀 **Getting Started (User-Level Privacy)**
 
