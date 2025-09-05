@@ -1,6 +1,5 @@
 // Privacy module for zkC0DL3
-// Elite-level privacy features implementation with maximum privacy-by-default
-// All transactions are private at maximum level (100) by default
+// All transactions are private by default
 
 pub mod mining_privacy;
 pub mod user_privacy;
