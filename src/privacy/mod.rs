@@ -12,6 +12,10 @@ pub mod production_stark_proofs;
 pub mod advanced_privacy_features;
 pub mod performance_optimization;
 pub mod security_audit_prep;
+pub mod boojum_stark_proofs;
+pub mod cross_chain_privacy;
+pub mod privacy_monitoring;
+pub mod placeholder_tracking;
 
 #[cfg(test)]
 mod tests;
@@ -109,6 +113,95 @@ pub use security_audit_prep::{
     AuditFinding,
     SecurityValidationResult,
     SecurityMetrics,
+};
+
+// Boojum STARK proof exports
+pub use boojum_stark_proofs::{
+    BoojumStarkProofSystem,
+    BoojumStarkProof,
+    BoojumProofMetadata,
+    BoojumPerformanceMetrics,
+    BoojumSpecificMetrics,
+};
+
+// Cross-chain privacy exports
+pub use cross_chain_privacy::{
+    CrossChainPrivacyCoordinator,
+    BlockchainNetwork,
+    NetworkType,
+    PrivacyCapabilities,
+    BridgeConfiguration,
+    BridgeType,
+    BridgePrivacySettings,
+    CrossChainPrivacyProof,
+    CrossChainProofMetadata,
+    CrossChainTransactionMapping,
+    PrivacyStatus,
+    PrivacyBridge,
+    BridgeInstance,
+    BridgeStatus,
+    BridgeStatistics,
+    CrossChainMetrics,
+    CrossChainPrivacyAnalytics,
+    CrossChainAnalyticsData,
+    PrivacyTrend,
+};
+
+// Privacy monitoring exports
+pub use privacy_monitoring::{
+    PrivacyMonitoringSystem,
+    PrivacyMetricsCollector,
+    PrivacyRealTimeMetrics,
+    PrivacyHistoricalMetrics,
+    PrivacyViolationDetector,
+    ViolationPattern,
+    DetectionRule,
+    ViolationSeverity,
+    PrivacyViolation,
+    ViolationThresholds,
+    PrivacyAnalyticsEngine,
+    PrivacyAnalyticsData,
+    PrivacyTrend as MonitoringPrivacyTrend,
+    AnonymityTrend,
+    MixingTrend,
+    CrossChainTrend,
+    PerformanceTrend,
+    TrendDirection,
+    AnalyticsModel,
+    TrendAnalysis,
+    TrendAnalysisResult,
+    PrivacyAlertingSystem,
+    AlertRule,
+    PrivacyAlert,
+    AlertStatus,
+    AlertChannel,
+    PrivacyDashboardData,
+    DashboardMetrics,
+    DashboardChart,
+    ChartDataPoint,
+    DashboardStatus,
+    PrivacyReport,
+};
+
+// Placeholder tracking exports
+pub use placeholder_tracking::{
+    PlaceholderTrackingSystem,
+    PlaceholderEntry,
+    PlaceholderType,
+    SecurityImpact,
+    PriorityLevel,
+    PlaceholderStatus,
+    SimplifiedImplementation,
+    SimplifiedImplementationType,
+    SimplifiedImplementationStatus,
+    ProductionRequirement,
+    ProductionRequirementType,
+    ImplementationEffort,
+    ProductionRequirementStatus,
+    IntegrationStatus,
+    ComponentIntegrationStatus,
+    IntegrationTimeline,
+    PlaceholderReport,
 };
 
 /// Privacy feature flags

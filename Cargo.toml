@@ -51,7 +51,10 @@ rand = "0.8"               # Cryptographically secure random number generation
 thiserror = "1.0"          # Error handling for privacy operations
 
 # Production STARK Proof Systems
-winter-crypto = "0.8"     # Production STARK implementation
+# Boojum STARK prover (zkSync's production STARK system)
+boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
+# Winter-crypto as fallback (keeping for compatibility)
+winter-crypto = "0.8"     # Fallback STARK implementation
 winter-utils = "0.8"      # STARK utilities
 winter-fri = "0.8"        # FRI protocol for STARKs
 winter-stark = "0.8"      # Core STARK implementation
