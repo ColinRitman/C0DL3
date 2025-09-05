@@ -8,6 +8,10 @@ pub mod stark_proofs;
 pub mod amount_commitments;
 pub mod address_encryption;
 pub mod timing_privacy;
+pub mod production_stark_proofs;
+pub mod advanced_privacy_features;
+pub mod performance_optimization;
+pub mod security_audit_prep;
 
 #[cfg(test)]
 mod tests;
@@ -49,6 +53,62 @@ pub use timing_privacy::{
     EncryptedTimestamp,
     TimestampRangeProof,
     TimingPrivacyBatch,
+};
+
+// Production-grade privacy exports
+pub use production_stark_proofs::{
+    ProductionStarkProofSystem,
+    ProductionStarkProof,
+    ProofMetadata,
+};
+
+pub use advanced_privacy_features::{
+    AdvancedPrivacyFeatures,
+    MixingPool,
+    AnonymityManager,
+    AnonymitySet,
+    PrivacyMetrics,
+    MixingProof,
+    ZeroKnowledgePrivacyProof,
+    PrivacyGuarantees,
+    PrivacyGovernance,
+    PrivacyPolicy,
+    ComplianceTracker,
+};
+
+pub use performance_optimization::{
+    OptimizedPrivacySystem,
+    ProofCache,
+    CachedProof,
+    CacheStats,
+    BatchManager,
+    ProcessingBatch,
+    BatchStatus,
+    BatchStats,
+    PerformanceMetrics,
+    PerformanceBenchmark,
+    BenchmarkResult,
+};
+
+pub use security_audit_prep::{
+    SecurityAuditPrep,
+    SecurityDocumentation,
+    CryptographicPrimitive,
+    SecurityAssumption,
+    AttackVector,
+    MitigationStrategy,
+    ThreatModel,
+    ThreatActor,
+    Asset,
+    ThreatScenario,
+    RiskAssessment,
+    SecurityControls,
+    SecurityControl,
+    AuditChecklist,
+    AuditItem,
+    AuditFinding,
+    SecurityValidationResult,
+    SecurityMetrics,
 };
 
 /// Privacy feature flags
