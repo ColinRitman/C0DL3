@@ -1,8 +1,18 @@
 // Privacy module for zkC0DL3
-// High-ROI privacy features implementation
+// Elite-level privacy features implementation with maximum privacy-by-default
+// All transactions are private at maximum level (100) by default
 
 pub mod mining_privacy;
+pub mod user_privacy;
+pub mod stark_proofs;
+pub mod amount_commitments;
+pub mod address_encryption;
+pub mod timing_privacy;
 
+#[cfg(test)]
+mod tests;
+
+// Legacy mining privacy exports (existing functionality)
 pub use mining_privacy::{
     MiningPrivacyEngine,
     MiningPrivacyConfig,
@@ -10,6 +20,35 @@ pub use mining_privacy::{
     AnonymousRewardClaim,
     PrivacyStats,
     MergeMiningPrivacyConfig,
+};
+
+// New user-level privacy exports
+pub use user_privacy::{
+    UserPrivacyManager,
+    PrivateTransaction,
+    PrivateBlock,
+    DecryptedTransaction,
+    StarkProof,
+};
+
+pub use stark_proofs::StarkProofSystem;
+pub use amount_commitments::{
+    AmountCommitment,
+    RangeProof,
+    CommitmentBatch,
+};
+
+pub use address_encryption::{
+    AddressEncryption,
+    EncryptedAddress,
+    AddressEncryptionBatch,
+};
+
+pub use timing_privacy::{
+    TimingPrivacy,
+    EncryptedTimestamp,
+    TimestampRangeProof,
+    TimingPrivacyBatch,
 };
 
 /// Privacy feature flags

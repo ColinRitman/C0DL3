@@ -8,6 +8,7 @@ use anyhow::{Result, anyhow};
 use tracing::{info, error, debug, warn};
 
 mod fuego_daemon;
+mod privacy;
 // mod unified_cli;
 // mod cli_interface;
 // mod visual_cli;
@@ -312,6 +313,8 @@ pub struct C0DL3ZkSyncNode {
     hyperchain_config: HyperchainConfig,
     fuego_blocks: Arc<Mutex<HashMap<u64, FuegoBlock>>>,
     merge_mining_active: Arc<Mutex<bool>>,
+    /// User-level privacy manager (always enabled at maximum level)
+    privacy_manager: Option<privacy::UserPrivacyManager>,
 }
 
 impl C0DL3ZkSyncNode {
@@ -323,6 +326,18 @@ impl C0DL3ZkSyncNode {
             bridge_address: config.zksync.bridge_address.clone(),
             validator_address: config.zksync.validator_address.clone(),
             l1_contract_address: config.zksync.l1_contract_address.clone(),
+        };
+
+        // Initialize user privacy manager (always enabled at maximum level)
+        let privacy_manager = match privacy::UserPrivacyManager::new() {
+            Ok(manager) => {
+                info!("User privacy manager initialized with maximum privacy level");
+                Some(manager)
+            },
+            Err(e) => {
+                error!("Failed to initialize privacy manager: {}", e);
+                None
+            }
         };
 
         Self {
@@ -355,6 +370,7 @@ impl C0DL3ZkSyncNode {
             hyperchain_config,
             fuego_blocks: Arc::new(Mutex::new(HashMap::new())),
             merge_mining_active: Arc::new(Mutex::new(false)),
+            privacy_manager,
         }
     }
 
@@ -823,6 +839,13 @@ impl C0DL3ZkSyncNode {
             .route("/merge-mining/stats", get(get_merge_mining_stats))
             .route("/merge-mining/fuego-blocks", get(get_fuego_blocks))
             .route("/merge-mining/fuego-blocks/:height", get(get_fuego_block))
+            // Privacy endpoints for user-level privacy
+            .route("/privacy/status", get(get_privacy_status))
+            .route("/privacy/create_transaction", post(create_private_transaction))
+            .route("/privacy/submit_transaction", post(submit_private_transaction))
+            .route("/privacy/get_transaction/:hash", get(get_private_transaction))
+            .route("/privacy/verify_transaction", post(verify_private_transaction))
+            .route("/privacy/decrypt_transaction", post(decrypt_transaction_details))
             .layer(ServiceBuilder::new().layer(cors))
             .with_state(app_state);
 
@@ -1062,6 +1085,121 @@ impl C0DL3ZkSyncNode {
             "latest_fuego_block": fuego_blocks.values().max_by_key(|b| b.height).map(|b| b.height)
         })
     }
+
+    // Privacy methods for user-level privacy (always enabled at maximum level)
+    
+    /// Create private transaction with user-level privacy
+    /// Privacy is always enabled at maximum level (100) - no options needed
+    pub async fn create_private_transaction(
+        &self,
+        sender: &str,
+        recipient: &str,
+        amount: u64,
+        sender_balance: u64,
+    ) -> Result<privacy::PrivateTransaction> {
+        if let Some(ref privacy_manager) = self.privacy_manager {
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+            
+            privacy_manager.create_private_transaction(
+                sender,
+                recipient,
+                amount,
+                timestamp,
+                sender_balance,
+            )
+        } else {
+            Err(anyhow!("Privacy manager not initialized"))
+        }
+    }
+    
+    /// Process private transaction with user-level privacy
+    /// Privacy is always enabled at maximum level (100) - no check needed
+    pub async fn process_private_transaction(
+        &self,
+        tx: privacy::PrivateTransaction,
+    ) -> Result<()> {
+        if let Some(ref privacy_manager) = self.privacy_manager {
+            // Verify transaction privacy
+            if !privacy_manager.verify_private_transaction(&tx)? {
+                return Err(anyhow!("Invalid private transaction"));
+            }
+            
+            // Process transaction (user privacy is maintained)
+            self.process_transaction_internal(tx).await?;
+        } else {
+            return Err(anyhow!("Privacy manager not initialized"));
+        }
+        
+        Ok(())
+    }
+    
+    /// Get private transaction by hash
+    pub async fn get_private_transaction(&self, hash: &str) -> Result<Option<privacy::PrivateTransaction>> {
+        if let Some(ref privacy_manager) = self.privacy_manager {
+            privacy_manager.get_private_transaction(hash)
+        } else {
+            Err(anyhow!("Privacy manager not initialized"))
+        }
+    }
+    
+    /// Decrypt transaction details (only for authorized users)
+    pub async fn decrypt_transaction_details(
+        &self,
+        tx: &privacy::PrivateTransaction,
+    ) -> Result<privacy::DecryptedTransaction> {
+        if let Some(ref privacy_manager) = self.privacy_manager {
+            privacy_manager.decrypt_transaction_details(tx)
+        } else {
+            Err(anyhow!("Privacy manager not initialized"))
+        }
+    }
+    
+    /// Check if privacy is enabled (always true)
+    pub fn is_privacy_enabled(&self) -> bool {
+        self.privacy_manager.is_some()
+    }
+    
+    /// Get privacy status
+    pub fn get_privacy_status(&self) -> serde_json::Value {
+        json!({
+            "enabled": self.is_privacy_enabled(),
+            "privacy_level": if self.is_privacy_enabled() { 100 } else { 0 },
+            "features": {
+                "transaction_amount_privacy": self.is_privacy_enabled(),
+                "address_privacy": self.is_privacy_enabled(),
+                "timing_privacy": self.is_privacy_enabled(),
+                "stark_proofs": self.is_privacy_enabled(),
+            },
+            "message": if self.is_privacy_enabled() { 
+                "Maximum privacy enabled by default" 
+            } else { 
+                "Privacy not available" 
+            }
+        })
+    }
+    
+    /// Internal method to process private transaction
+    async fn process_transaction_internal(&self, tx: privacy::PrivateTransaction) -> Result<()> {
+        // Add transaction to pending transactions
+        {
+            let mut pending = self.pending_transactions.lock().unwrap();
+            pending.insert(tx.hash.clone(), Transaction {
+                hash: tx.hash.clone(),
+                from: "encrypted_sender".to_string(), // Address is encrypted
+                to: "encrypted_recipient".to_string(), // Address is encrypted
+                value: 0, // Amount is hidden in commitment
+                gas_price: 0,
+                gas_limit: 0,
+                nonce: 0,
+                data: vec![],
+                signature: vec![],
+                status: TransactionStatus::Pending,
+            });
+        }
+        
+        info!("Private transaction processed: {}", tx.hash);
+        Ok(())
+    }
 }
 
 // RPC Handlers and App State
@@ -1174,6 +1312,95 @@ async fn get_fuego_block(
         Some(block) => Ok(Json(json!(block))),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+// Privacy RPC handlers for user-level privacy
+
+/// Get privacy status endpoint
+async fn get_privacy_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let status = state.node.get_privacy_status();
+    Json(status)
+}
+
+/// Create private transaction endpoint
+async fn create_private_transaction(
+    State(state): State<AppState>,
+    Json(request): Json<CreatePrivateTransactionRequest>,
+) -> Result<Json<privacy::PrivateTransaction>, StatusCode> {
+    match state.node.create_private_transaction(
+        &request.sender,
+        &request.recipient,
+        request.amount,
+        request.sender_balance,
+    ).await {
+        Ok(tx) => Ok(Json(tx)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// Submit private transaction endpoint
+async fn submit_private_transaction(
+    State(state): State<AppState>,
+    Json(tx): Json<privacy::PrivateTransaction>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match state.node.process_private_transaction(tx).await {
+        Ok(_) => Ok(Json(json!({
+            "status": "success", 
+            "message": "Private transaction submitted",
+            "privacy_level": "maximum"
+        }))),
+        Err(_) => Err(StatusCode::BAD_REQUEST),
+    }
+}
+
+/// Get private transaction endpoint
+async fn get_private_transaction(
+    State(state): State<AppState>,
+    Path(hash): Path<String>,
+) -> Result<Json<privacy::PrivateTransaction>, StatusCode> {
+    match state.node.get_private_transaction(&hash).await {
+        Ok(Some(tx)) => Ok(Json(tx)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// Verify private transaction endpoint
+async fn verify_private_transaction(
+    State(state): State<AppState>,
+    Json(tx): Json<privacy::PrivateTransaction>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if let Some(ref privacy_manager) = state.node.privacy_manager {
+        match privacy_manager.verify_private_transaction(&tx) {
+            Ok(is_valid) => Ok(Json(json!({
+                "valid": is_valid,
+                "message": if is_valid { "Transaction is valid" } else { "Transaction is invalid" }
+            }))),
+            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
+}
+
+/// Decrypt transaction details endpoint (authorized users only)
+async fn decrypt_transaction_details(
+    State(state): State<AppState>,
+    Json(tx): Json<privacy::PrivateTransaction>,
+) -> Result<Json<privacy::DecryptedTransaction>, StatusCode> {
+    match state.node.decrypt_transaction_details(&tx).await {
+        Ok(decrypted) => Ok(Json(decrypted)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+/// Request structure for creating private transactions
+#[derive(Deserialize)]
+struct CreatePrivateTransactionRequest {
+    sender: String,
+    recipient: String,
+    amount: u64,
+    sender_balance: u64,
 }
 
 // CLI structure

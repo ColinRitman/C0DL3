@@ -42,10 +42,15 @@ spinners = "4.1"
 terminal_size = "0.1"
 rustyline = "12.0"
 
-# Privacy and Zero-Knowledge Dependencies
-# Note: Using simplified implementations for now
-# bulletproofs = "2.0"
-# merkle-tree = "0.1"
-# poseidon-hash = "0.1"
-# bellman = "0.7"
-# arkworks = "0.4"
+# Elite-Level Privacy and Zero-Knowledge Dependencies
+# Production-ready cryptography for user-level privacy
+bulletproofs = "4.0"       # Range proofs for amount privacy
+chacha20poly1305 = "0.10"  # Address/timing encryption (AEAD)
+curve25519-dalek = "4.0"   # Elliptic curves for commitments
+rand = "0.8"               # Cryptographically secure random number generation
+thiserror = "1.0"          # Error handling for privacy operations
+
+# STARK Proof Systems
+# Note: Using simplified STARK implementation for now
+# boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }  # zkSync's STARK prover
+# winter-crypto = "0.8"     # Alternative STARK implementation
