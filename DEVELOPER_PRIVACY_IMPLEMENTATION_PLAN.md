@@ -8,6 +8,7 @@ This guide provides a step-by-step implementation plan for integrating **user-le
 - **Address Privacy** - Hide who users are transacting with  
 - **Transaction Timing Privacy** - Hide when users make transactions
 
+**Privacy-by-Default**: All transactions are private by default with no option to turn off privacy.
 **No block-level privacy** - we focus only on individual user benefits.
 
 ## 🚀 **Hybrid STARK Strategy: xfgwinterfell + Boojum**
@@ -394,8 +395,7 @@ use crate::privacy::{
 };
 
 pub struct UserPrivacyManager {
-    pub privacy_enabled: bool,
-    pub privacy_level: u8,  // 0-100, where 100 = maximum privacy
+    pub privacy_level: u8,  // 50-100, where 100 = maximum privacy (privacy always enabled)
     pub encryption_key: [u8; 32],
     pub stark_system: StarkProofSystem,
     pub address_encryption: AddressEncryption,
@@ -403,14 +403,16 @@ pub struct UserPrivacyManager {
 }
 
 impl UserPrivacyManager {
-    pub fn new(privacy_enabled: bool, privacy_level: u8) -> Result<Self, Error> {
+    pub fn new(privacy_level: u8) -> Result<Self, Error> {
+        // Privacy is always enabled - no option to turn it off
+        let privacy_level = privacy_level.max(50); // Minimum privacy level is 50
+        
         let encryption_key = Self::generate_encryption_key()?;
         let stark_system = StarkProofSystem::new();
         let address_encryption = AddressEncryption::new(&encryption_key);
         let timing_privacy = TimingPrivacy::new(&encryption_key);
         
         Ok(Self {
-            privacy_enabled,
             privacy_level,
             encryption_key,
             stark_system,
@@ -419,7 +421,7 @@ impl UserPrivacyManager {
         })
     }
     
-    // Create private transaction with user-level privacy
+    // Create private transaction with user-level privacy (always enabled)
     pub fn create_private_transaction(
         &self,
         sender: &str,
@@ -428,9 +430,7 @@ impl UserPrivacyManager {
         timestamp: u64,
         sender_balance: u64,
     ) -> Result<PrivateTransaction, Error> {
-        if !self.privacy_enabled {
-            return Err(Error::PrivacyDisabled);
-        }
+        // Privacy is always enabled - no check needed
         
         // Generate transaction hash (public for verification)
         let tx_data = format!("{}:{}:{}:{}", sender, recipient, amount, timestamp);
@@ -464,11 +464,9 @@ impl UserPrivacyManager {
         })
     }
     
-    // Verify private transaction (user-level privacy)
+    // Verify private transaction (user-level privacy - always enabled)
     pub fn verify_private_transaction(&self, tx: &PrivateTransaction) -> Result<bool, Error> {
-        if !self.privacy_enabled {
-            return Ok(false);
-        }
+        // Privacy is always enabled - no check needed
         
         // Verify STARK proofs
         let validity_valid = self.stark_system.verify_proof(&tx.validity_proof, &[])?;
