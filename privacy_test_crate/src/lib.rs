@@ -38,19 +38,15 @@ pub struct PrivateBlock {
 pub struct UserPrivacyManager {
     /// Encryption key for address/timestamp encryption
     pub encryption_key: String,
-    /// Privacy level (50-100, privacy always enabled)
-    pub privacy_level: u8,
 }
 
 impl UserPrivacyManager {
-    /// Create a new user privacy manager (privacy always enabled)
-    pub fn new(encryption_key: String, privacy_level: u8) -> Self {
-        // Privacy is always enabled - no option to turn it off
-        let privacy_level = privacy_level.max(50); // Minimum privacy level is 50
+    /// Create a new user privacy manager (maximum privacy always enabled)
+    pub fn new(encryption_key: String) -> Self {
+        // Privacy is always enabled at maximum level (100) - no options needed
         
         Self {
             encryption_key,
-            privacy_level,
         }
     }
 
@@ -216,31 +212,28 @@ mod tests {
 
     #[test]
     fn test_user_privacy_manager_creation() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
-        assert_eq!(privacy_manager.privacy_level, 80);
-        // Privacy is always enabled - no privacy_enabled field
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
+        // Privacy is always enabled at maximum level (100) - no privacy_level field needed
+        assert!(!privacy_manager.encryption_key.is_empty());
     }
 
     #[test]
-    fn test_privacy_always_enabled() {
-        // Test that privacy is always enabled regardless of input
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 30); // Try to set low privacy
-        assert_eq!(privacy_manager.privacy_level, 50); // Should be clamped to minimum 50
+    fn test_maximum_privacy_always_enabled() {
+        // Test that maximum privacy is always enabled
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 100); // Maximum privacy
-        assert_eq!(privacy_manager.privacy_level, 100);
-        
-        // All transactions should be private by default
+        // All transactions should be private at maximum level by default
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         assert!(!tx.encrypted_sender.is_empty()); // Address should be encrypted
         assert!(!tx.encrypted_recipient.is_empty()); // Address should be encrypted
         assert!(!tx.amount_commitment.is_empty()); // Amount should be committed
         assert!(!tx.encrypted_timestamp.is_empty()); // Timestamp should be encrypted
+        assert!(!tx.validity_proof.is_empty()); // Validity proof should be present
     }
 
     #[test]
     fn test_private_transaction_generation() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         
         assert!(!tx.hash.is_empty());
@@ -253,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_private_block_generation() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
         let tx1 = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         let tx2 = privacy_manager.generate_private_transaction("charlie", "david", 300, 1234567891).unwrap();
@@ -273,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_user_privacy_verification() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         let block = privacy_manager.generate_private_block(1, vec![tx.clone()], 1234567892).unwrap();
@@ -284,22 +277,23 @@ mod tests {
 
     #[test]
     fn test_privacy_cannot_be_disabled() {
-        // Privacy is always enabled - this test verifies that even with low privacy level,
-        // transactions are still private
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 50); // Minimum privacy level
+        // Privacy is always enabled at maximum level - this test verifies that
+        // transactions are always private at maximum level
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         
-        // Even at minimum privacy level, all privacy features should be active
+        // All privacy features should be active at maximum level
         assert!(!tx.encrypted_sender.is_empty());
         assert!(!tx.encrypted_recipient.is_empty());
         assert!(!tx.amount_commitment.is_empty());
         assert!(!tx.encrypted_timestamp.is_empty());
+        assert!(!tx.validity_proof.is_empty());
     }
 
     #[test]
     fn test_address_encryption() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         
         // Verify addresses are encrypted (not plaintext)
@@ -311,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_amount_privacy() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         
         // Verify amount is hidden in commitment
@@ -321,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_timing_privacy() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         let tx = privacy_manager.generate_private_transaction("alice", "bob", 500, 1234567890).unwrap();
         
         // Verify timestamp is encrypted
@@ -331,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_multiple_user_transactions() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
         let transactions: Vec<PrivateTransaction> = (0..3)
             .map(|i| privacy_manager.generate_private_transaction(
@@ -350,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_user_privacy_block() {
-        let privacy_manager = UserPrivacyManager::new("test_key".to_string(), 80);
+        let privacy_manager = UserPrivacyManager::new("test_key".to_string());
         
         // Generate multiple user transactions
         let transactions: Vec<PrivateTransaction> = (0..3)

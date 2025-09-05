@@ -8,7 +8,7 @@ This guide provides a step-by-step implementation plan for integrating **user-le
 - **Address Privacy** - Hide who users are transacting with  
 - **Transaction Timing Privacy** - Hide when users make transactions
 
-**Privacy-by-Default**: All transactions are private by default with no option to turn off privacy.
+**Maximum Privacy-by-Default**: All transactions are private at maximum level (100) by default with no options needed.
 **No block-level privacy** - we focus only on individual user benefits.
 
 ## 🚀 **Hybrid STARK Strategy: xfgwinterfell + Boojum**
@@ -395,7 +395,6 @@ use crate::privacy::{
 };
 
 pub struct UserPrivacyManager {
-    pub privacy_level: u8,  // 50-100, where 100 = maximum privacy (privacy always enabled)
     pub encryption_key: [u8; 32],
     pub stark_system: StarkProofSystem,
     pub address_encryption: AddressEncryption,
@@ -403,9 +402,8 @@ pub struct UserPrivacyManager {
 }
 
 impl UserPrivacyManager {
-    pub fn new(privacy_level: u8) -> Result<Self, Error> {
-        // Privacy is always enabled - no option to turn it off
-        let privacy_level = privacy_level.max(50); // Minimum privacy level is 50
+    pub fn new() -> Result<Self, Error> {
+        // Privacy is always enabled at maximum level (100) - no options needed
         
         let encryption_key = Self::generate_encryption_key()?;
         let stark_system = StarkProofSystem::new();
@@ -413,7 +411,6 @@ impl UserPrivacyManager {
         let timing_privacy = TimingPrivacy::new(&encryption_key);
         
         Ok(Self {
-            privacy_level,
             encryption_key,
             stark_system,
             address_encryption,
