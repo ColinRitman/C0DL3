@@ -59,8 +59,11 @@ winter-utils = "0.8"      # STARK utilities
 winter-fri = "0.8"        # FRI protocol for STARKs
 winter-stark = "0.8"      # Core STARK implementation
 
+
 # Advanced Cryptographic Libraries
 arkworks = { version = "0.4", features = ["std"] }  # Advanced cryptographic primitives
 bellman = "0.7"           # Zero-knowledge proof systems
 merlin = "3.0"            # Transcript for zero-knowledge proofs
 poseidon-hash = "0.1"     # Poseidon hash function for STARKs
+
+
