@@ -1,34 +1,56 @@
-# Developer Implementation Plan: User-Focused Privacy Features for zkC0DL3
+# Developer Implementation Plan: User-Level Privacy Features for zkC0DL3
 
 ## 🎯 **Overview**
 
-This guide provides a step-by-step implementation plan for integrating user-focused privacy features into zkC0DL3, prioritizing **STARKs** where possible while maintaining **manageable implementation workload**.
+This guide provides a step-by-step implementation plan for integrating **user-level privacy features** into zkC0DL3. We focus on protecting individual users' financial privacy through:
+
+- **Transaction Amount Privacy** - Hide how much users are sending/receiving
+- **Address Privacy** - Hide who users are transacting with  
+- **Transaction Timing Privacy** - Hide when users make transactions
+
+**No block-level privacy** - we focus only on individual user benefits.
 
 ## 📋 **Implementation Phases**
 
 ### **Phase 1: Core Privacy Infrastructure (Week 1-2)**
 **Priority: HIGH | Complexity: MEDIUM | STARKs: YES**
 
-#### **1.1 Privacy Module Structure**
+#### **1.1 Create Privacy Module Structure**
+```bash
+# Create the privacy module directory
+mkdir -p src/privacy/tests
+
+# Create module files
+touch src/privacy/mod.rs
+touch src/privacy/user_privacy.rs
+touch src/privacy/stark_proofs.rs
+touch src/privacy/amount_commitments.rs
+touch src/privacy/address_encryption.rs
+touch src/privacy/timing_privacy.rs
+```
+
 ```rust
 // File: src/privacy/mod.rs
 pub mod user_privacy;
 pub mod stark_proofs;
-pub mod commitments;
-pub mod encryption;
+pub mod amount_commitments;
+pub mod address_encryption;
+pub mod timing_privacy;
 
 pub use user_privacy::UserPrivacyManager;
 pub use stark_proofs::StarkProofSystem;
-pub use commitments::AmountCommitment;
-pub use encryption::AddressEncryption;
+pub use amount_commitments::AmountCommitment;
+pub use address_encryption::AddressEncryption;
+pub use timing_privacy::TimingPrivacy;
 ```
 
-#### **1.2 STARK Proof System Setup**
+#### **1.2 Implement STARK Proof System**
 ```rust
 // File: src/privacy/stark_proofs.rs
 use winter_crypto::{hashers::Blake3_256, RandomCoin};
 use winter_math::FieldElement;
 use winter_prover::{ProofOptions, Prover};
+use anyhow::Result;
 
 pub struct StarkProofSystem {
     proof_options: ProofOptions,
@@ -43,23 +65,32 @@ impl StarkProofSystem {
         }
     }
     
-    // Generate STARK proof for transaction validity
-    pub fn prove_transaction_validity(&self, tx_data: &TransactionData) -> Result<StarkProof, Error> {
-        // Implementation using STARKs
+    // Generate STARK proof for transaction validity (user-level)
+    pub fn prove_transaction_validity(&self, amount: u64, sender_balance: u64) -> Result<StarkProof, Error> {
+        // Prove: sender has sufficient balance for transaction
+        // Prove: amount is within valid range (0 < amount <= sender_balance)
+        // This protects user privacy by proving validity without revealing exact amounts
+    }
+    
+    // Generate STARK proof for amount range (user-level)
+    pub fn prove_amount_range(&self, amount: u64, min_amount: u64, max_amount: u64) -> Result<StarkProof, Error> {
+        // Prove: min_amount <= amount <= max_amount
+        // This hides the exact amount while proving it's valid
     }
     
     // Verify STARK proof
     pub fn verify_proof(&self, proof: &StarkProof, public_inputs: &[FieldElement]) -> Result<bool, Error> {
-        // Implementation using STARKs
+        // Verify the STARK proof without revealing private inputs
     }
 }
 ```
 
-#### **1.3 Amount Commitment System**
+#### **1.3 Implement Amount Commitment System**
 ```rust
-// File: src/privacy/commitments.rs
+// File: src/privacy/amount_commitments.rs
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use curve25519_dalek::scalar::Scalar;
+use anyhow::Result;
 
 pub struct AmountCommitment {
     pub commitment: CompressedRistretto,
@@ -77,22 +108,126 @@ impl AmountCommitment {
         }
     }
     
-    // Generate STARK proof for amount commitment
+    // Generate STARK proof for amount range (user-level privacy)
     pub fn prove_amount_range(&self, amount: u64, max_amount: u64) -> Result<StarkProof, Error> {
-        // Use STARKs to prove amount is within valid range
+        // Use STARKs to prove: 0 < amount <= max_amount
+        // This hides the exact amount while proving it's valid
+        // Protects user's financial privacy
+    }
+    
+    // Verify amount commitment
+    pub fn verify_commitment(&self, amount: u64) -> Result<bool, Error> {
+        // Verify the commitment matches the amount
+        // Without revealing the amount to external observers
     }
 }
 ```
 
-### **Phase 2: Transaction Privacy Integration (Week 3-4)**
+### **Phase 2: User-Level Transaction Privacy (Week 3-4)**
 **Priority: HIGH | Complexity: MEDIUM | STARKs: YES**
 
-#### **2.1 Enhanced Transaction Structure**
+#### **2.1 Implement Address Encryption Module**
+```rust
+// File: src/privacy/address_encryption.rs
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use anyhow::Result;
+
+pub struct AddressEncryption {
+    cipher: ChaCha20Poly1305,
+}
+
+impl AddressEncryption {
+    pub fn new(key: &[u8; 32]) -> Self {
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
+        Self { cipher }
+    }
+    
+    // Encrypt sender address (protects user identity)
+    pub fn encrypt_sender(&self, sender: &str) -> Result<EncryptedAddress> {
+        let nonce = Nonce::from_slice(&[0u8; 12]); // Use proper nonce generation
+        let ciphertext = self.cipher.encrypt(nonce, sender.as_bytes())?;
+        
+        Ok(EncryptedAddress {
+            ciphertext: ciphertext.to_vec(),
+            nonce: nonce.to_vec(),
+        })
+    }
+    
+    // Encrypt recipient address (protects user identity)
+    pub fn encrypt_recipient(&self, recipient: &str) -> Result<EncryptedAddress> {
+        // Same as encrypt_sender but with different nonce
+    }
+    
+    // Decrypt address (only for authorized users)
+    pub fn decrypt_address(&self, encrypted: &EncryptedAddress) -> Result<String> {
+        let nonce = Nonce::from_slice(&encrypted.nonce);
+        let plaintext = self.cipher.decrypt(nonce, &encrypted.ciphertext)?;
+        Ok(String::from_utf8(plaintext)?)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedAddress {
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
+}
+```
+
+#### **2.2 Implement Timing Privacy Module**
+```rust
+// File: src/privacy/timing_privacy.rs
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use anyhow::Result;
+
+pub struct TimingPrivacy {
+    cipher: ChaCha20Poly1305,
+}
+
+impl TimingPrivacy {
+    pub fn new(key: &[u8; 32]) -> Self {
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
+        Self { cipher }
+    }
+    
+    // Encrypt transaction timestamp (protects user timing)
+    pub fn encrypt_timestamp(&self, timestamp: u64) -> Result<EncryptedTimestamp> {
+        let timestamp_bytes = timestamp.to_le_bytes();
+        let nonce = Nonce::from_slice(&[1u8; 12]); // Use proper nonce generation
+        let ciphertext = self.cipher.encrypt(nonce, &timestamp_bytes)?;
+        
+        Ok(EncryptedTimestamp {
+            ciphertext: ciphertext.to_vec(),
+            nonce: nonce.to_vec(),
+        })
+    }
+    
+    // Decrypt timestamp (only for authorized users)
+    pub fn decrypt_timestamp(&self, encrypted: &EncryptedTimestamp) -> Result<u64> {
+        let nonce = Nonce::from_slice(&encrypted.nonce);
+        let plaintext = self.cipher.decrypt(nonce, &encrypted.ciphertext)?;
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&plaintext);
+        Ok(u64::from_le_bytes(bytes))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedTimestamp {
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
+}
+```
+
+#### **2.3 Implement User Privacy Transaction Structure**
 ```rust
 // File: src/privacy/user_privacy.rs
 use serde::{Deserialize, Serialize};
-use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
-use curve25519_dalek::scalar::Scalar;
+use crate::privacy::{
+    stark_proofs::StarkProofSystem,
+    amount_commitments::AmountCommitment,
+    address_encryption::{AddressEncryption, EncryptedAddress},
+    timing_privacy::{TimingPrivacy, EncryptedTimestamp},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateTransaction {
@@ -100,15 +235,15 @@ pub struct PrivateTransaction {
     pub hash: String,
     pub validity_proof: StarkProof,
     
-    // Private fields (encrypted/committed)
-    pub encrypted_sender: EncryptedAddress,
-    pub encrypted_recipient: EncryptedAddress,
-    pub amount_commitment: AmountCommitment,
-    pub encrypted_timestamp: EncryptedTimestamp,
+    // User privacy fields (encrypted/committed)
+    pub encrypted_sender: EncryptedAddress,      // Hides sender identity
+    pub encrypted_recipient: EncryptedAddress,    // Hides recipient identity
+    pub amount_commitment: AmountCommitment,     // Hides transaction amount
+    pub encrypted_timestamp: EncryptedTimestamp, // Hides transaction timing
     
-    // STARK proof components
-    pub range_proof: RangeProof,
-    pub balance_proof: StarkProof,
+    // STARK proof components (user-level)
+    pub range_proof: StarkProof,                // Proves amount is valid
+    pub balance_proof: StarkProof,              // Proves sufficient balance
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,27 +345,120 @@ impl PrivateTransaction {
 }
 ```
 
-### **Phase 3: Block Privacy Integration (Week 5-6)**
-**Priority: MEDIUM | Complexity: MEDIUM | STARKs: YES**
+### **Phase 3: User Privacy Manager Integration (Week 5-6)**
+**Priority: HIGH | Complexity: LOW | STARKs: NO**
 
-#### **3.1 Enhanced Block Structure**
+#### **3.1 Implement User Privacy Manager**
 ```rust
-// File: src/privacy/block_privacy.rs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrivateBlock {
-    // Public fields
-    pub hash: String,
-    pub height: u64,
-    pub validity_proof: StarkProof,
-    
-    // Private fields
-    pub encrypted_timestamp: EncryptedTimestamp,
-    pub private_transactions: Vec<PrivateTransaction>,
-    
-    // STARK proof components
-    pub merkle_proof: StarkProof,
-    pub batch_proof: StarkProof,
+// File: src/privacy/user_privacy.rs (continued)
+use crate::privacy::{
+    stark_proofs::StarkProofSystem,
+    amount_commitments::AmountCommitment,
+    address_encryption::AddressEncryption,
+    timing_privacy::TimingPrivacy,
+};
+
+pub struct UserPrivacyManager {
+    pub privacy_enabled: bool,
+    pub privacy_level: u8,  // 0-100, where 100 = maximum privacy
+    pub encryption_key: [u8; 32],
+    pub stark_system: StarkProofSystem,
+    pub address_encryption: AddressEncryption,
+    pub timing_privacy: TimingPrivacy,
 }
+
+impl UserPrivacyManager {
+    pub fn new(privacy_enabled: bool, privacy_level: u8) -> Result<Self, Error> {
+        let encryption_key = Self::generate_encryption_key()?;
+        let stark_system = StarkProofSystem::new();
+        let address_encryption = AddressEncryption::new(&encryption_key);
+        let timing_privacy = TimingPrivacy::new(&encryption_key);
+        
+        Ok(Self {
+            privacy_enabled,
+            privacy_level,
+            encryption_key,
+            stark_system,
+            address_encryption,
+            timing_privacy,
+        })
+    }
+    
+    // Create private transaction with user-level privacy
+    pub fn create_private_transaction(
+        &self,
+        sender: &str,
+        recipient: &str,
+        amount: u64,
+        timestamp: u64,
+        sender_balance: u64,
+    ) -> Result<PrivateTransaction, Error> {
+        if !self.privacy_enabled {
+            return Err(Error::PrivacyDisabled);
+        }
+        
+        // Generate transaction hash (public for verification)
+        let tx_data = format!("{}:{}:{}:{}", sender, recipient, amount, timestamp);
+        let tx_hash = sha256(&tx_data);
+        
+        // Encrypt addresses (protects user identity)
+        let encrypted_sender = self.address_encryption.encrypt_sender(sender)?;
+        let encrypted_recipient = self.address_encryption.encrypt_recipient(recipient)?;
+        
+        // Generate amount commitment (hides transaction amount)
+        let blinding_factor = Scalar::random(&mut OsRng);
+        let amount_commitment = AmountCommitment::new(amount, blinding_factor);
+        
+        // Encrypt timestamp (protects user timing)
+        let encrypted_timestamp = self.timing_privacy.encrypt_timestamp(timestamp)?;
+        
+        // Generate STARK proofs (user-level privacy)
+        let validity_proof = self.stark_system.prove_transaction_validity(amount, sender_balance)?;
+        let range_proof = self.stark_system.prove_amount_range(amount, 0, sender_balance)?;
+        let balance_proof = self.stark_system.prove_balance_consistency(sender_balance, amount)?;
+        
+        Ok(PrivateTransaction {
+            hash: tx_hash,
+            validity_proof,
+            encrypted_sender,
+            encrypted_recipient,
+            amount_commitment,
+            encrypted_timestamp,
+            range_proof,
+            balance_proof,
+        })
+    }
+    
+    // Verify private transaction (user-level privacy)
+    pub fn verify_private_transaction(&self, tx: &PrivateTransaction) -> Result<bool, Error> {
+        if !self.privacy_enabled {
+            return Ok(false);
+        }
+        
+        // Verify STARK proofs
+        let validity_valid = self.stark_system.verify_proof(&tx.validity_proof, &[])?;
+        let range_valid = self.stark_system.verify_proof(&tx.range_proof, &[])?;
+        let balance_valid = self.stark_system.verify_proof(&tx.balance_proof, &[])?;
+        
+        // Verify all privacy components are present
+        let has_encrypted_sender = !tx.encrypted_sender.ciphertext.is_empty();
+        let has_encrypted_recipient = !tx.encrypted_recipient.ciphertext.is_empty();
+        let has_amount_commitment = tx.amount_commitment.commitment != CompressedRistretto::default();
+        let has_encrypted_timestamp = !tx.encrypted_timestamp.ciphertext.is_empty();
+        
+        Ok(validity_valid && range_valid && balance_valid && 
+           has_encrypted_sender && has_encrypted_recipient && 
+           has_amount_commitment && has_encrypted_timestamp)
+    }
+    
+    fn generate_encryption_key() -> Result<[u8; 32], Error> {
+        use rand::RngCore;
+        let mut key = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut key);
+        Ok(key)
+    }
+}
+```
 
 impl PrivateBlock {
     pub fn new(
@@ -272,111 +500,33 @@ impl PrivateBlock {
 }
 ```
 
-### **Phase 4: Privacy Manager Integration (Week 7-8)**
-**Priority: HIGH | Complexity: LOW | STARKs: NO**
-
-#### **4.1 Enhanced Privacy Manager**
-```rust
-// File: src/privacy/privacy_manager.rs
-pub struct UserPrivacyManager {
-    pub privacy_enabled: bool,
-    pub privacy_level: u8,
-    pub encryption_key: [u8; 32],
-    pub stark_system: StarkProofSystem,
-    pub bulletproof_gens: BulletproofGens,
-}
-
-impl UserPrivacyManager {
-    pub fn new(privacy_enabled: bool, privacy_level: u8) -> Result<Self, Error> {
-        let encryption_key = Self::generate_encryption_key()?;
-        let stark_system = StarkProofSystem::new();
-        let bulletproof_gens = BulletproofGens::new(64, 1);
-        
-        Ok(Self {
-            privacy_enabled,
-            privacy_level,
-            encryption_key,
-            stark_system,
-            bulletproof_gens,
-        })
-    }
-    
-    // Create private transaction with STARK proofs
-    pub fn create_private_transaction(
-        &self,
-        sender: &str,
-        recipient: &str,
-        amount: u64,
-        timestamp: u64,
-    ) -> Result<PrivateTransaction, Error> {
-        if !self.privacy_enabled {
-            return Err(Error::PrivacyDisabled);
-        }
-        
-        PrivateTransaction::new(
-            sender,
-            recipient,
-            amount,
-            timestamp,
-            &self.stark_system,
-        )
-    }
-    
-    // Create private block with STARK proofs
-    pub fn create_private_block(
-        &self,
-        height: u64,
-        transactions: Vec<PrivateTransaction>,
-        timestamp: u64,
-    ) -> Result<PrivateBlock, Error> {
-        if !self.privacy_enabled {
-            return Err(Error::PrivacyDisabled);
-        }
-        
-        PrivateBlock::new(height, transactions, timestamp, &self.stark_system)
-    }
-    
-    // Verify private transaction
-    pub fn verify_private_transaction(&self, tx: &PrivateTransaction) -> Result<bool, Error> {
-        if !self.privacy_enabled {
-            return Ok(false);
-        }
-        
-        // Verify STARK proof
-        let public_inputs = self.extract_public_inputs(tx)?;
-        self.stark_system.verify_proof(&tx.validity_proof, &public_inputs)
-    }
-    
-    // Verify private block
-    pub fn verify_private_block(&self, block: &PrivateBlock) -> Result<bool, Error> {
-        if !self.privacy_enabled {
-            return Ok(false);
-        }
-        
-        // Verify block STARK proof
-        let block_inputs = self.extract_block_public_inputs(block)?;
-        let block_valid = self.stark_system.verify_proof(&block.validity_proof, &block_inputs)?;
-        
-        // Verify all transactions
-        for tx in &block.private_transactions {
-            if !self.verify_private_transaction(tx)? {
-                return Ok(false);
-            }
-        }
-        
-        Ok(block_valid)
-    }
-}
-```
-
-### **Phase 5: Integration with zkC0DL3 Core (Week 9-10)**
+### **Phase 4: Integration with zkC0DL3 Core (Week 7-8)**
 **Priority: HIGH | Complexity: HIGH | STARKs: YES**
 
-#### **5.1 Core Node Integration**
-```rust
-// File: src/node.rs
-use crate::privacy::{UserPrivacyManager, PrivateTransaction, PrivateBlock};
+#### **4.1 Add Privacy Module to Main Cargo.toml**
+```toml
+# Add to Cargo.toml dependencies
+[dependencies]
+# Existing dependencies...
+# Privacy dependencies
+winter-crypto = "0.8"      # STARKs
+bulletproofs = "4.0"       # Range proofs
+chacha20poly1305 = "0.10"  # Address/timing encryption
+curve25519-dalek = "4.0"   # Elliptic curves
+rand = "0.8"               # Random number generation
+```
 
+#### **4.2 Update Main Module Structure**
+```rust
+// File: src/main.rs (add privacy module)
+mod privacy;
+
+use privacy::UserPrivacyManager;
+```
+
+#### **4.3 Update C0DL3ZkSyncNode Structure**
+```rust
+// File: src/main.rs (update node structure)
 pub struct C0DL3ZkSyncNode {
     // ... existing fields ...
     pub privacy_manager: Option<UserPrivacyManager>,
@@ -389,7 +539,7 @@ impl C0DL3ZkSyncNode {
             privacy_manager: None,
         };
         
-        // Initialize privacy manager if enabled
+        // Initialize user privacy manager if enabled
         if config.privacy_enabled {
             node.privacy_manager = Some(UserPrivacyManager::new(
                 config.privacy_enabled,
@@ -400,7 +550,7 @@ impl C0DL3ZkSyncNode {
         Ok(node)
     }
     
-    // Process private transaction
+    // Process private transaction (user-level privacy)
     pub async fn process_private_transaction(
         &self,
         tx: PrivateTransaction,
@@ -411,7 +561,7 @@ impl C0DL3ZkSyncNode {
                 return Err(Error::InvalidTransaction);
             }
             
-            // Process transaction
+            // Process transaction (user privacy is maintained)
             self.process_transaction_internal(tx).await?;
         } else {
             return Err(Error::PrivacyNotEnabled);
@@ -420,20 +570,88 @@ impl C0DL3ZkSyncNode {
         Ok(())
     }
     
-    // Create private block
-    pub async fn create_private_block(
+    // Create private transaction (user-level privacy)
+    pub async fn create_private_transaction(
         &self,
-        transactions: Vec<PrivateTransaction>,
-    ) -> Result<PrivateBlock, Error> {
+        sender: &str,
+        recipient: &str,
+        amount: u64,
+        sender_balance: u64,
+    ) -> Result<PrivateTransaction, Error> {
         if let Some(ref privacy_manager) = self.privacy_manager {
-            let height = self.get_current_height() + 1;
             let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
             
-            privacy_manager.create_private_block(height, transactions, timestamp)
+            privacy_manager.create_private_transaction(
+                sender,
+                recipient,
+                amount,
+                timestamp,
+                sender_balance,
+            )
         } else {
             Err(Error::PrivacyNotEnabled)
         }
     }
+}
+```
+
+### **Phase 5: RPC Integration & Testing (Week 9-10)**
+**Priority: HIGH | Complexity: MEDIUM | STARKs: NO**
+
+#### **5.1 Add Privacy RPC Endpoints**
+```rust
+// File: src/main.rs (add privacy RPC endpoints)
+impl RpcServer {
+    pub fn setup_privacy_routes(&mut self) {
+        // Submit private transaction (user-level privacy)
+        self.router.route("/privacy/submit_transaction", post(submit_private_transaction));
+        
+        // Get private transaction (user-level privacy)
+        self.router.route("/privacy/get_transaction/:hash", get(get_private_transaction));
+        
+        // Verify private transaction (user-level privacy)
+        self.router.route("/privacy/verify_transaction", post(verify_private_transaction));
+        
+        // Create private transaction (user-level privacy)
+        self.router.route("/privacy/create_transaction", post(create_private_transaction));
+    }
+}
+
+async fn submit_private_transaction(
+    State(state): State<AppState>,
+    Json(tx): Json<PrivateTransaction>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match state.node.process_private_transaction(tx).await {
+        Ok(_) => Ok(Json(json!({
+            "status": "success", 
+            "message": "Private transaction submitted",
+            "privacy_level": "user-level"
+        }))),
+        Err(e) => Err(StatusCode::BAD_REQUEST),
+    }
+}
+
+async fn create_private_transaction(
+    State(state): State<AppState>,
+    Json(request): Json<CreatePrivateTransactionRequest>,
+) -> Result<Json<PrivateTransaction>, StatusCode> {
+    match state.node.create_private_transaction(
+        &request.sender,
+        &request.recipient,
+        request.amount,
+        request.sender_balance,
+    ).await {
+        Ok(tx) => Ok(Json(tx)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[derive(Deserialize)]
+struct CreatePrivateTransactionRequest {
+    sender: String,
+    recipient: String,
+    amount: u64,
+    sender_balance: u64,
 }
 ```
 
@@ -486,125 +704,124 @@ async fn get_private_transaction(
 ### **Cargo.toml Updates**
 ```toml
 [dependencies]
-# STARKs and Zero-Knowledge Proofs
-winter-crypto = "0.8"
-winter-math = "0.8"
-winter-prover = "0.8"
-bulletproofs = "4.0"
-curve25519-dalek = "4.0"
-
-# Encryption
-chacha20poly1305 = "0.10"
-aes-gcm = "0.10"
-
-# Hashing
-sha2 = "0.10"
-blake3 = "1.0"
-
-# Serialization
+# Existing dependencies...
+# User-level privacy dependencies
+winter-crypto = "0.8"      # STARKs for user-level proofs
+bulletproofs = "4.0"       # Range proofs for amount privacy
+chacha20poly1305 = "0.10"  # Address/timing encryption
+curve25519-dalek = "4.0"   # Elliptic curves for commitments
+rand = "0.8"               # Random number generation
+sha2 = "0.10"              # Hashing for commitments
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Error handling
 anyhow = "1.0"
 thiserror = "1.0"
 ```
 
 ## 📊 **Implementation Timeline**
 
-| Phase | Duration | Priority | Complexity | STARKs Usage |
-|-------|----------|----------|------------|--------------|
-| Phase 1: Core Infrastructure | 2 weeks | HIGH | MEDIUM | YES |
-| Phase 2: Transaction Privacy | 2 weeks | HIGH | MEDIUM | YES |
-| Phase 3: Block Privacy | 2 weeks | MEDIUM | MEDIUM | YES |
-| Phase 4: Privacy Manager | 2 weeks | HIGH | LOW | NO |
-| Phase 5: Core Integration | 2 weeks | HIGH | HIGH | YES |
-| **Total** | **10 weeks** | - | - | - |
+| Phase | Duration | Priority | Complexity | STARKs Usage | Focus |
+|-------|----------|----------|------------|--------------|-------|
+| Phase 1: Core Infrastructure | 2 weeks | HIGH | MEDIUM | YES | STARKs + Amount commitments |
+| Phase 2: User Transaction Privacy | 2 weeks | HIGH | MEDIUM | YES | Address + Timing encryption |
+| Phase 3: User Privacy Manager | 2 weeks | HIGH | LOW | NO | Privacy manager integration |
+| Phase 4: Core Integration | 2 weeks | HIGH | HIGH | YES | Node integration |
+| Phase 5: RPC & Testing | 2 weeks | HIGH | MEDIUM | NO | API endpoints + testing |
+| **Total** | **10 weeks** | - | - | - | **User-level privacy only** |
 
-## 🎯 **STARKs Usage Strategy**
+## 🎯 **STARKs Usage Strategy (User-Level Privacy Only)**
 
-### **Where We Use STARKs**
-1. **Transaction Validity Proofs** - Prove transaction is valid without revealing details
-2. **Amount Range Proofs** - Prove amount is within valid range
-3. **Balance Consistency Proofs** - Prove sender has sufficient balance
-4. **Block Validity Proofs** - Prove block is valid without revealing contents
-5. **Merkle Tree Proofs** - Prove transaction inclusion in block
-6. **Batch Processing Proofs** - Prove batch of transactions is valid
+### **Where We Use STARKs (User-Level Privacy)**
+1. **Transaction Validity Proofs** - Prove transaction is valid without revealing user details
+2. **Amount Range Proofs** - Prove amount is within valid range (hides exact amount)
+3. **Balance Consistency Proofs** - Prove sender has sufficient balance (hides exact balance)
+4. **Amount Commitment Verification** - Prove commitment matches amount (hides amount)
 
-### **Where We Don't Use STARKs**
+### **Where We Don't Use STARKs (Performance)**
 1. **Address Encryption** - Use ChaCha20Poly1305 (faster, simpler)
 2. **Timestamp Encryption** - Use ChaCha20Poly1305 (faster, simpler)
 3. **Key Derivation** - Use HKDF (faster, simpler)
-4. **Hash Functions** - Use SHA-256/Blake3 (faster, simpler)
+4. **Hash Functions** - Use SHA-256 (faster, simpler)
+
+### **No Block-Level Privacy**
+- **No block encryption** - Blocks remain public
+- **No block-level STARKs** - Focus only on user-level privacy
+- **No block timing privacy** - Block timing remains public
 
 ## 🔧 **Development Guidelines**
 
-### **1. Code Organization**
+### **1. Code Organization (User-Level Privacy Only)**
 ```
 src/privacy/
 ├── mod.rs                 # Privacy module exports
 ├── user_privacy.rs        # User privacy manager
-├── stark_proofs.rs        # STARK proof system
-├── commitments.rs         # Amount commitments
-├── encryption.rs          # Address/timestamp encryption
-├── block_privacy.rs       # Block privacy features
-└── tests/                 # Privacy tests
-    ├── transaction_tests.rs
-    ├── block_tests.rs
+├── stark_proofs.rs        # STARK system (user-level)
+├── amount_commitments.rs  # Amount commitments
+├── address_encryption.rs  # Address encryption
+├── timing_privacy.rs      # Timing encryption
+└── tests/                 # Test suite
+    ├── user_privacy_tests.rs
+    ├── amount_privacy_tests.rs
+    ├── address_privacy_tests.rs
     └── integration_tests.rs
 ```
 
-### **2. Testing Strategy**
-- **Unit Tests** - Test individual privacy components
-- **Integration Tests** - Test privacy with core zkC0DL3
+### **2. Testing Strategy (User-Level Privacy)**
+- **Unit Tests** - Test individual user privacy components
+- **Integration Tests** - Test user privacy with core zkC0DL3
 - **Performance Tests** - Test STARK proof generation/verification
-- **Security Tests** - Test privacy guarantees
+- **Security Tests** - Test user privacy guarantees
+- **No Block Tests** - Focus only on user-level privacy
 
 ### **3. Performance Considerations**
-- **STARK Proof Generation** - Optimize for speed
-- **Proof Verification** - Optimize for speed
-- **Memory Usage** - Minimize memory footprint
-- **Storage** - Efficient proof storage
+- **STARK Proof Generation** - Optimize for user-level proofs
+- **Proof Verification** - Optimize for user-level verification
+- **Memory Usage** - Minimize memory footprint for user privacy
+- **Storage** - Efficient storage for user privacy data
 
-## 🚀 **Getting Started**
+## 🚀 **Getting Started (User-Level Privacy)**
 
 ### **Step 1: Setup Dependencies**
 ```bash
 cd /Users/aejt/codl3-implementations/c0dl3-zksync
-# Update Cargo.toml with new dependencies
+# Update Cargo.toml with user-level privacy dependencies
 cargo build
 ```
 
-### **Step 2: Create Privacy Module**
+### **Step 2: Create User Privacy Module**
 ```bash
 mkdir -p src/privacy/tests
 touch src/privacy/mod.rs
 touch src/privacy/user_privacy.rs
 touch src/privacy/stark_proofs.rs
-touch src/privacy/commitments.rs
-touch src/privacy/encryption.rs
-touch src/privacy/block_privacy.rs
+touch src/privacy/amount_commitments.rs
+touch src/privacy/address_encryption.rs
+touch src/privacy/timing_privacy.rs
 ```
 
-### **Step 3: Implement Phase 1**
-Start with the core privacy infrastructure and STARK proof system.
+### **Step 3: Implement Phase 1 (Core Infrastructure)**
+Start with STARK proof system and amount commitments for user-level privacy.
 
-### **Step 4: Test and Iterate**
-Implement comprehensive tests for each phase before moving to the next.
+### **Step 4: Implement Phase 2 (User Transaction Privacy)**
+Add address encryption and timing privacy for individual users.
 
-## 📈 **Success Metrics**
+### **Step 5: Test and Iterate**
+Implement comprehensive tests for user-level privacy before moving to the next phase.
+
+## 📈 **Success Metrics (User-Level Privacy)**
 
 ### **Technical Metrics**
-- **STARK Proof Generation Time** - < 100ms per transaction
-- **STARK Proof Verification Time** - < 10ms per transaction
-- **Memory Usage** - < 1MB per private transaction
-- **Storage Overhead** - < 2KB per private transaction
+- **STARK Proof Generation Time** - < 100ms per user transaction
+- **STARK Proof Verification Time** - < 10ms per user transaction
+- **Memory Usage** - < 1MB per private user transaction
+- **Storage Overhead** - < 2KB per private user transaction
 
-### **Privacy Metrics**
-- **Address Privacy** - 100% encrypted addresses
-- **Amount Privacy** - 100% hidden amounts
-- **Timing Privacy** - 100% encrypted timestamps
-- **Verification** - 100% STARK proof verification
+### **User Privacy Metrics**
+- **Address Privacy** - 100% encrypted user addresses
+- **Amount Privacy** - 100% hidden user transaction amounts
+- **Timing Privacy** - 100% encrypted user transaction timestamps
+- **Verification** - 100% STARK proof verification for user privacy
+- **No Block Privacy** - Blocks remain public (user-level privacy only)
 
 ## 🎉 **Conclusion**
 

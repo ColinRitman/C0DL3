@@ -2,60 +2,114 @@
 /target/
 **/target/
 Cargo.lock
+*.pdb
 
-# IDE
+# IDE and Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.vim/
+.emacs.d/
 
-# OS
+# OS Files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
+logs/
+log/
 
-# Data directories
+# Data and Runtime Directories
 /data/
 /fuego-data/
 /bin/
+/tmp/
+/temp/
 
-# Temporary files
-*.tmp
-*.temp
-
-# Build artifacts
+# Build Artifacts
 *.o
 *.so
 *.dylib
 *.dll
 *.exe
+*.a
+*.lib
 
-# Test artifacts
+# Test Artifacts
 /test-results/
 /coverage/
+*.prof
+*.gcda
+*.gcno
 
-# Environment files
+# Environment Files
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
 
-# Node modules (if any)
+# Node.js (if any)
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
 env/
 venv/
 .venv/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Backup files
+# Backup Files
 *.bak
 *.backup
 *.orig
+*.rej
+*~
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Documentation Build
+docs/_build/
+docs/build/
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Configuration Overrides
+config.local.json
+config.production.json
+
+# Fuego Specific
+fuego-fresh/
+fuegod
+*.fuego
+
+# Privacy Test Artifacts
+privacy_test_crate/target/
+merge_mining_test_crate/target/
+
+# Demo Artifacts
+demo/target/
