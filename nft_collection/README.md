@@ -13,6 +13,7 @@ The **𝝣lderado Genesis Collection** is the inaugural NFT collection celebrati
 - **Blockchain**: zkC0DL3 Hyperchain
 - **Mint Price**: 0.1 ETH
 - **Royalty**: 5%
+- **Transfer Restriction**: NFTs can only be sold for the staking amount (1,000,000 tokens)
 
 ## 👑 NFT Rarity Distribution
 
@@ -78,6 +79,19 @@ All 21 𝝣lderado NFTs are identical and represent the founding validators of t
 - **Genesis Block**: 0x0000000000000000000000000000000000000000000000000000000000000000
 - **Genesis Transaction**: 0x0000000000000000000000000000000000000000000000000000000000000001
 
+## 🔒 Transfer Restrictions
+
+### Staking Amount Requirement
+- **Fixed Price**: NFTs can only be sold for exactly 1,000,000 tokens
+- **No Price Variation**: Cannot be sold for more or less than the staking amount
+- **Enforced by Contract**: Transfer functions require exact staking amount
+- **Purpose**: Ensures NFTs maintain their validator staking value
+
+### Transfer Functions
+- `transferFrom()`: Requires 1,000,000 tokens as msg.value
+- `safeTransferFrom()`: Requires 1,000,000 tokens as msg.value
+- `_beforeTokenTransfer()`: Validates staking amount before transfer
+
 ## 🛠️ Smart Contract Features
 
 ### Core Functions
@@ -87,6 +101,7 @@ All 21 𝝣lderado NFTs are identical and represent the founding validators of t
 - `getAllValidators()`: Get all validator data
 - `getValidatorsByType()`: Filter validators by type
 - `getValidatorsByRarityScore()`: Filter by rarity score range
+- `getStakingAmount()`: Get required staking amount for transfers
 
 ### Utility Functions
 - `getTotalRarityScore()`: Calculate total collection rarity
