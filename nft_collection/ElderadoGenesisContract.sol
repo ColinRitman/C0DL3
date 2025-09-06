@@ -28,6 +28,7 @@ contract ElderadoGenesisCollection is
     uint256 public constant MAX_SUPPLY = 21;
     uint256 public constant MINT_PRICE = 0.1 ether;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5% in basis points
+    uint256 public constant STAKING_AMOUNT = 80000000000; // 80,000,000,000 HEAT tokens (staking requirement)
     
     // State variables
     Counters.Counter private _tokenIdCounter;
@@ -323,6 +324,7 @@ contract ElderadoGenesisCollection is
      * @return totalRarityScore Total rarity score
      * @return averageRarityScore Average rarity score
      * @return mintingEnabled Current minting status
+     * @return stakingAmount Required staking amount for transfers
      */
     function getCollectionStats() 
         external 
@@ -331,13 +333,23 @@ contract ElderadoGenesisCollection is
             uint256 totalSupply,
             uint256 totalRarityScore,
             uint256 averageRarityScore,
-            bool mintingEnabled
+            bool mintingEnabled,
+            uint256 stakingAmount
         ) 
     {
         totalSupply = totalSupply();
         totalRarityScore = this.getTotalRarityScore();
         averageRarityScore = this.getAverageRarityScore();
         mintingEnabled = mintingEnabled;
+        stakingAmount = STAKING_AMOUNT;
+    }
+    
+    /**
+     * @dev Get the required staking amount for NFT transfers
+     * @return The staking amount required to transfer NFTs
+     */
+    function getStakingAmount() external pure returns (uint256) {
+        return STAKING_AMOUNT;
     }
     
     /**
@@ -403,7 +415,8 @@ contract ElderadoGenesisCollection is
     }
     
     /**
-     * @dev Override required for multiple inheritance
+
+     * @dev Override transfer to enforce staking amount restriction
      */
     function _beforeTokenTransfer(
         address from,
@@ -411,7 +424,58 @@ contract ElderadoGenesisCollection is
         uint256 tokenId,
         uint256 batchSize
     ) internal override(ERC721, ERC721Enumerable) {
+
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super._beforeTokenTransfer(from, to, tokenId, batchSize);
+            return;
+        }
+        
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+        
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+    
+    /**
+     * @dev Override transferFrom to enforce staking amount restriction
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public payable override(ERC721, IERC721) {
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super.transferFrom(from, to, tokenId);
+            return;
+        }
+        
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+        
+        super.transferFrom(from, to, tokenId);
+    }
+    
+    /**
+     * @dev Override safeTransferFrom to enforce staking amount restriction
+     */
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public payable override(ERC721, IERC721) {
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super.safeTransferFrom(from, to, tokenId, data);
+            return;
+        }
+        
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+        
+        super.safeTransferFrom(from, to, tokenId, data);
     }
     
     /**

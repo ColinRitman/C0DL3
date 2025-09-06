@@ -14,15 +14,13 @@ The **𝝣lderado Genesis Collection** is the inaugural NFT collection celebrati
 - **Mint Price**: 0.1 ETH
 - **Royalty**: 5%
 
+- **Transfer Restriction**: NFTs can only be sold for the staking amount (80,000,000,000 HEAT tokens)
+
 ## 👑 NFT Rarity Distribution
 
-| Rarity | Count | Percentage | Power Level Range |
-|--------|-------|------------|-------------------|
-| **Legendary** | 1 | 4.8% | 100 |
-| **Epic** | 4 | 19.0% | 88-95 |
-| **Rare** | 4 | 19.0% | 80-87 |
-| **Uncommon** | 6 | 28.6% | 70-78 |
-| **Common** | 6 | 28.6% | 58-66 |
+| Rarity | Count | Percentage | Power Level |
+|--------|-------|------------|-------------|
+| **Genesis** | 21 | 100% | 100 |
 
 ## 🎨 NFT Attributes
 
@@ -44,62 +42,56 @@ Each 𝝣lderado NFT contains the following attributes:
 
 ## 🚀 Genesis NFTs
 
-### Legendary (1/21)
-1. **𝝣lderado #001 - The Founder** ⭐
-   - Power Level: 100
-   - Stake Multiplier: 3.0x
-   - Special Ability: Genesis Blessing
-   - Rarity Score: 1000
+### Genesis Collection (21/21)
+All 21 𝝣lderado NFTs are identical and represent the founding validators of the zkC0DL3 network:
 
-### Epic (4/21)
-2. **𝝣lderado #002 - The Guardian**
-   - Power Level: 95
-   - Stake Multiplier: 2.5x
-   - Special Ability: Shield Wall
+1. **𝝣lderado #001** ⭐
+2. **𝝣lderado #002** ⭐
+3. **𝝣lderado #003** ⭐
+4. **𝝣lderado #004** ⭐
+5. **𝝣lderado #005** ⭐
+6. **𝝣lderado #006** ⭐
+7. **𝝣lderado #007** ⭐
+8. **𝝣lderado #008** ⭐
+9. **𝝣lderado #009** ⭐
+10. **𝝣lderado #010** ⭐
+11. **𝝣lderado #011** ⭐
+12. **𝝣lderado #012** ⭐
+13. **𝝣lderado #013** ⭐
+14. **𝝣lderado #014** ⭐
+15. **𝝣lderado #015** ⭐
+16. **𝝣lderado #016** ⭐
+17. **𝝣lderado #017** ⭐
+18. **𝝣lderado #018** ⭐
+19. **𝝣lderado #019** ⭐
+20. **𝝣lderado #020** ⭐
+21. **𝝣lderado #021** ⭐
 
-3. **𝝣lderado #003 - The Architect**
-   - Power Level: 90
-   - Stake Multiplier: 2.3x
-   - Special Ability: Proof Mastery
-
-4. **𝝣lderado #005 - The Oracle**
-   - Power Level: 88
-   - Stake Multiplier: 2.2x
-   - Special Ability: Future Sight
-
-5. **𝝣lderado #021 - The Prodigy**
-   - Power Level: 92
-   - Stake Multiplier: 2.4x
-   - Special Ability: Evolution Boost
-
-### Rare (4/21)
-6. **𝝣lderado #004 - The Miner**
-7. **𝝣lderado #006 - The Sentinel**
-8. **𝝣lderado #007 - The Scholar**
-9. **𝝣lderado #008 - The Warrior**
-
-### Uncommon (6/21)
-10. **𝝣lderado #009 - The Merchant**
-11. **𝝣lderado #010 - The Explorer**
-12. **𝝣lderado #011 - The Healer**
-13. **𝝣lderado #012 - The Builder**
-14. **𝝣lderado #013 - The Navigator**
-15. **𝝣lderado #014 - The Librarian**
-
-### Common (6/21)
-16. **𝝣lderado #015 - The Messenger**
-17. **𝝣lderado #016 - The Farmer**
-18. **𝝣lderado #017 - The Scout**
-19. **𝝣lderado #018 - The Artisan**
-20. **𝝣lderado #019 - The Steward**
-21. **𝝣lderado #020 - The Apprentice**
+**All NFTs have identical attributes:**
+- Power Level: 100
+- Stake Multiplier: 3.0x
+- Special Ability: Genesis Blessing
+- Rarity Score: 1000
 
 ## 📊 Collection Statistics
 
-- **Total Rarity Score**: 12,000
-- **Average Rarity Score**: 571.43
+- **Total Rarity Score**: 21,000
+- **Average Rarity Score**: 1000
 - **Genesis Block**: 0x0000000000000000000000000000000000000000000000000000000000000000
 - **Genesis Transaction**: 0x0000000000000000000000000000000000000000000000000000000000000001
+
+## 🔒 Transfer Restrictions
+
+### Staking Amount Requirement
+- **Fixed Price**: NFTs can only be sold for exactly 80,000,000,000 HEAT tokens
+- **No Price Variation**: Cannot be sold for more or less than the staking amount
+- **Enforced by Contract**: Transfer functions require exact staking amount
+- **Purpose**: Ensures NFTs maintain their validator staking value
+
+### Transfer Functions
+- `transferFrom()`: Requires 80,000,000,000 HEAT tokens as msg.value
+- `safeTransferFrom()`: Requires 80,000,000,000 HEAT tokens as msg.value
+- `_beforeTokenTransfer()`: Validates staking amount before transfer
 
 ## 🛠️ Smart Contract Features
 
@@ -110,6 +102,7 @@ Each 𝝣lderado NFT contains the following attributes:
 - `getAllValidators()`: Get all validator data
 - `getValidatorsByType()`: Filter validators by type
 - `getValidatorsByRarityScore()`: Filter by rarity score range
+- `getStakingAmount()`: Get required staking amount for transfers
 
 ### Utility Functions
 - `getTotalRarityScore()`: Calculate total collection rarity
