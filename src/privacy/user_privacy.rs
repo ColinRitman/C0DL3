@@ -3,7 +3,7 @@
 // All transactions are private at maximum level (100) by default
 
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use sha2::{Sha256, Digest};
@@ -18,6 +18,7 @@ use crate::privacy::{
 
 /// User-level privacy manager with elite cryptography standards
 /// Privacy is always enabled at maximum level (100) - no options needed
+#[derive(Clone)]
 pub struct UserPrivacyManager {
     /// Encryption key for address and timing privacy
     encryption_key: [u8; 32],
@@ -136,7 +137,7 @@ impl UserPrivacyManager {
         let balance_proof = self.stark_system.prove_balance_consistency(sender_balance, amount)?;
         
         let transaction = PrivateTransaction {
-            hash: tx_hash,
+            hash: tx_hash.clone(),
             validity_proof,
             encrypted_sender,
             encrypted_recipient,
@@ -149,7 +150,7 @@ impl UserPrivacyManager {
         // Store transaction
         {
             let mut transactions = self.private_transactions.lock().unwrap();
-            transactions.insert(tx_hash.clone(), transaction.clone());
+            transactions.insert(tx_hash, transaction.clone());
         }
         
         Ok(transaction)

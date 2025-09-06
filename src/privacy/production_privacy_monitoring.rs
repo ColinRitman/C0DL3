@@ -2,19 +2,14 @@
 // Implements actual privacy monitoring and analytics for production-grade security
 // Replaces placeholder implementations with production-grade monitoring
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    production_boojum_integration::ProductionBoojumStarkSystem,
-    production_cross_chain_privacy::ProductionCrossChainPrivacyCoordinator,
-};
+use crate::privacy::user_privacy::PrivateTransaction;
 
 /// Production privacy monitoring system
 pub struct ProductionPrivacyMonitoringSystem {

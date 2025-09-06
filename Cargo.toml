@@ -15,7 +15,7 @@ axum = "0.8.4"
 clap = { version = "4.4", features = ["derive"] }
 futures = "0.3.31"
 hex = "0.4.3"
-libp2p = { version = "0.56.0", features = ["tcp", "yamux", "noise", "identify", "kad", "floodsub"] }
+libp2p = { version = "0.56.0", features = ["tcp", "yamux", "noise", "identify", "kad", "floodsub", "macros", "tokio"] }
 secp256k1 = "0.31.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.143"
@@ -53,10 +53,9 @@ thiserror = "1.0"          # Error handling for privacy operations
 
 # Production STARK Proof Systems
 # Winter-crypto STARK prover (Facebook's production STARK system)
-winter-crypto = "0.8"
-winter-math = "0.8"
-winter-prover = "0.8"
-winter-utils = "0.8"
+winter-crypto = "0.13.1"
+winter-fri = "0.13.1"
+winter-prover = "0.13.1"
 # Note: Boojum repository not publicly available, using Winter-crypto instead
 
 

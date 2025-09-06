@@ -2,17 +2,11 @@
 // Implements comprehensive security documentation and audit preparation
 // Follows elite-level security standards for professional security audits
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    production_stark_proofs::ProductionStarkProofSystem,
-    advanced_privacy_features::AdvancedPrivacyFeatures,
-    performance_optimization::OptimizedPrivacySystem,
-};
 
 /// Security audit preparation system
 pub struct SecurityAuditPrep {

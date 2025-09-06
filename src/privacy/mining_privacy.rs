@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 
 /// Private mining reward structure
 #[derive(Debug, Clone, Serialize, Deserialize)]

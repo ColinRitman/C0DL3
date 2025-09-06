@@ -2,7 +2,7 @@
 // Implements comprehensive privacy monitoring, analytics, and violation detection
 // Provides real-time privacy metrics and alerting
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
@@ -10,11 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    advanced_privacy_features::AdvancedPrivacyFeatures,
-    cross_chain_privacy::CrossChainPrivacyCoordinator,
-};
+use crate::privacy::user_privacy::PrivateTransaction;
 
 /// Privacy monitoring system
 pub struct PrivacyMonitoringSystem {

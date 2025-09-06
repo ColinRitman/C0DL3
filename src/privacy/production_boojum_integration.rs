@@ -5,7 +5,6 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use hex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Note: In production, these would be actual Boojum imports

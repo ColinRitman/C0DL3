@@ -2,9 +2,10 @@
 // Comprehensive tracking of all simplified/placeholder values in the privacy system
 // Provides detailed documentation of what needs production integration
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use sha2::{Sha256, Digest};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 

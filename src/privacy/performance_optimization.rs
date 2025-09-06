@@ -4,17 +4,14 @@
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::task;
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    production_stark_proofs::ProductionStarkProofSystem,
-    advanced_privacy_features::AdvancedPrivacyFeatures,
-};
+use crate::privacy::user_privacy::PrivateTransaction;
 
 /// Performance-optimized privacy system
 pub struct OptimizedPrivacySystem {
@@ -401,13 +398,15 @@ impl OptimizedPrivacySystem {
         
         // Remove least recently used proofs if cache is full
         if cache.proofs.len() >= cache.max_cache_size {
-            let mut proofs: Vec<_> = cache.proofs.iter().collect();
-            proofs.sort_by_key(|(_, proof)| proof.access_count);
+            // Collect keys and access counts
+            let mut proof_info: Vec<_> = cache.proofs.iter().map(|(key, proof)| (key.clone(), proof.access_count)).collect();
+            proof_info.sort_by_key(|(_, count)| *count);
             
-            let to_remove = proofs.len() - cache.max_cache_size + 100; // Remove 100 extra
-            let keys_to_remove: Vec<_> = proofs.iter().take(to_remove).map(|(key, _)| *key).collect();
+            let to_remove = proof_info.len() - cache.max_cache_size + 100; // Remove 100 extra
+            let keys_to_remove: Vec<_> = proof_info.iter().take(to_remove).map(|(key, _)| key.clone()).collect();
+            
             for key in keys_to_remove {
-                cache.proofs.remove(key);
+                cache.proofs.remove(&key);
             }
         }
         

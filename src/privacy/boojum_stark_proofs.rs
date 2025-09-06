@@ -4,8 +4,6 @@
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use hex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Note: Boojum integration placeholder - actual Boojum types would be imported here

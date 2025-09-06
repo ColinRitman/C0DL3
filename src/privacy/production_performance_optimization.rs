@@ -2,14 +2,11 @@
 // Implements actual performance optimization for production-grade operations
 // Replaces placeholder implementations with production-grade performance
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use crate::privacy::{
-    user_privacy::PrivateTransaction,
     production_boojum_integration::ProductionBoojumStarkSystem,
     production_cross_chain_privacy::ProductionCrossChainPrivacyCoordinator,
     production_privacy_monitoring::ProductionPrivacyMonitoringSystem,

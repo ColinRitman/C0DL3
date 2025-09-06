@@ -6,8 +6,7 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
-use rand::{RngCore, Rng};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 

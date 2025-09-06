@@ -3,11 +3,11 @@
 
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::time::interval;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use tracing::{info, error, debug, warn};
+use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FuegoDaemonConfig {

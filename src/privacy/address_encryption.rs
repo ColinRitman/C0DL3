@@ -33,6 +33,7 @@ pub struct AddressMetadata {
 }
 
 /// Address encryption system using ChaCha20Poly1305
+#[derive(Clone)]
 pub struct AddressEncryption {
     /// Encryption key (32 bytes)
     encryption_key: [u8; 32],

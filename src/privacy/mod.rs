@@ -1,6 +1,8 @@
 // Privacy module for zkC0DL3
 // All transactions are private by default
 
+use serde::{Deserialize, Serialize};
+
 pub mod mining_privacy;
 pub mod user_privacy;
 pub mod stark_proofs;
@@ -28,336 +30,39 @@ mod tests;
 pub use mining_privacy::{
     MiningPrivacyEngine,
     MiningPrivacyConfig,
-    PrivateMiningReward,
-    AnonymousRewardClaim,
-    PrivacyStats,
-    MergeMiningPrivacyConfig,
 };
 
 // New user-level privacy exports
 pub use user_privacy::{
     UserPrivacyManager,
     PrivateTransaction,
-    PrivateBlock,
     DecryptedTransaction,
-    StarkProof,
 };
+
 
 // Use production STARK system instead of placeholder
-pub use production_stark_proofs::ProductionStarkProofSystem as StarkProofSystem;
 // Keep placeholder for reference
-pub use stark_proofs::StarkProofSystem as PlaceholderStarkProofSystem;
-pub use amount_commitments::{
-    AmountCommitment,
-    RangeProof,
-    CommitmentBatch,
-};
 
-pub use address_encryption::{
-    AddressEncryption,
-    EncryptedAddress,
-    AddressEncryptionBatch,
-};
 
-pub use timing_privacy::{
-    TimingPrivacy,
-    EncryptedTimestamp,
-    TimestampRangeProof,
-    TimingPrivacyBatch,
-};
 
 // Production-grade privacy exports
-pub use production_stark_proofs::{
-    ProductionStarkProofSystem,
-    ProductionStarkProof,
-    ProofMetadata,
-};
 
-pub use advanced_privacy_features::{
-    AdvancedPrivacyFeatures,
-    MixingPool,
-    AnonymityManager,
-    AnonymitySet,
-    PrivacyMetrics,
-    MixingProof,
-    ZeroKnowledgePrivacyProof,
-    PrivacyGuarantees,
-    PrivacyGovernance,
-    PrivacyPolicy,
-    ComplianceTracker,
-};
 
-pub use performance_optimization::{
-    OptimizedPrivacySystem,
-    ProofCache,
-    CachedProof,
-    CacheStats,
-    BatchManager,
-    ProcessingBatch,
-    BatchStatus,
-    BatchStats,
-    PerformanceMetrics,
-    PerformanceBenchmark,
-    BenchmarkResult,
-};
 
-pub use security_audit_prep::{
-    SecurityAuditPrep,
-    SecurityDocumentation,
-    CryptographicPrimitive,
-    SecurityAssumption,
-    AttackVector,
-    MitigationStrategy,
-    ThreatModel,
-    ThreatActor,
-    Asset,
-    ThreatScenario,
-    RiskAssessment,
-    SecurityControls,
-    SecurityControl,
-    AuditChecklist,
-    AuditItem,
-    AuditFinding,
-    SecurityValidationResult,
-    SecurityMetrics,
-};
 
 // Boojum STARK proof exports
-pub use boojum_stark_proofs::{
-    BoojumStarkProofSystem,
-    BoojumStarkProof,
-    BoojumProofMetadata,
-    BoojumPerformanceMetrics,
-    BoojumSpecificMetrics,
-};
 
 // Cross-chain privacy exports
-pub use cross_chain_privacy::{
-    CrossChainPrivacyCoordinator,
-    BlockchainNetwork,
-    NetworkType,
-    PrivacyCapabilities,
-    BridgeConfiguration,
-    BridgeType,
-    BridgePrivacySettings,
-    CrossChainPrivacyProof,
-    CrossChainProofMetadata,
-    CrossChainTransactionMapping,
-    PrivacyStatus,
-    PrivacyBridge,
-    BridgeInstance,
-    BridgeStatus,
-    BridgeStatistics,
-    CrossChainMetrics,
-    CrossChainPrivacyAnalytics,
-    CrossChainAnalyticsData,
-    PrivacyTrend,
-};
 
 // Privacy monitoring exports
-pub use privacy_monitoring::{
-    PrivacyMonitoringSystem,
-    PrivacyMetricsCollector,
-    PrivacyRealTimeMetrics,
-    PrivacyHistoricalMetrics,
-    PrivacyViolationDetector,
-    ViolationPattern,
-    DetectionRule,
-    ViolationSeverity,
-    PrivacyViolation,
-    ViolationThresholds,
-    PrivacyAnalyticsEngine,
-    PrivacyAnalyticsData,
-    PrivacyTrend as MonitoringPrivacyTrend,
-    AnonymityTrend,
-    MixingTrend,
-    CrossChainTrend,
-    PerformanceTrend,
-    TrendDirection,
-    AnalyticsModel,
-    TrendAnalysis,
-    TrendAnalysisResult,
-    PrivacyAlertingSystem,
-    AlertRule,
-    PrivacyAlert,
-    AlertStatus,
-    AlertChannel,
-    PrivacyDashboardData,
-    DashboardMetrics,
-    DashboardChart,
-    ChartDataPoint,
-    DashboardStatus,
-    PrivacyReport,
-};
 
 // Placeholder tracking exports
-pub use placeholder_tracking::{
-    PlaceholderTrackingSystem,
-    PlaceholderEntry,
-    PlaceholderType,
-    SecurityImpact,
-    PriorityLevel,
-    PlaceholderStatus,
-    SimplifiedImplementation,
-    SimplifiedImplementationType,
-    SimplifiedImplementationStatus,
-    ProductionRequirement,
-    ProductionRequirementType,
-    ImplementationEffort,
-    ProductionRequirementStatus,
-    IntegrationStatus,
-    ComponentIntegrationStatus,
-    IntegrationTimeline,
-    PlaceholderReport,
-};
 
 // Production implementation exports
-pub use production_boojum_integration::{
-    ProductionBoojumStarkSystem,
-    ProductionBoojumProver,
-    ProductionBoojumVerifier,
-    ProductionProofParameters,
-    ProductionFriParameters,
-    ProductionConstraintParameters,
-    ProductionBoojumParameters,
-    ProductionBoojumConfig,
-    ProductionOptimizationSettings,
-    ProductionProverConfig,
-    ProductionProverLimits,
-    ProductionProverState,
-    ProductionProverStats,
-    ProductionVerifierConfig,
-    ProductionVerifierLimits,
-    ProductionVerifierState,
-    ProductionVerifierStats,
-    ProductionPerformanceMetrics,
-    ProofGenerationPerformance,
-    ProofVerificationPerformance,
-    MemoryPerformance,
-    CpuPerformance,
-    ProductionBoojumStarkProof,
-    ProductionProofMetadata,
-    ProofPerformanceMetrics,
-};
 
-pub use production_cross_chain_privacy::{
-    ProductionCrossChainPrivacyCoordinator,
-    ProductionCrossChainProofGenerator,
-    ProductionCrossChainVerifier,
-    ProductionBridgeManager,
-    ProductionCrossChainPrivacyProof,
-    ProductionCrossChainProofMetadata,
-    CrossChainProofPerformanceMetrics,
-    ProductionProofGeneratorConfig,
-    ProductionProofGeneratorState,
-    ProductionProofGeneratorStats,
-    ProductionCrossChainVerifierConfig,
-    ProductionCrossChainVerifierState,
-    ProductionCrossChainVerifierStats,
-    ProductionBridgeConfig,
-    ProductionBridgePrivacySettings,
-    ProductionBridgeInstance,
-    ProductionBridgeStatistics,
-    ProductionCrossChainMetrics,
-};
 
-pub use production_privacy_monitoring::{
-    ProductionPrivacyMonitoringSystem,
-    ProductionMetricsCollector,
-    ProductionRealTimeMetrics,
-    ProductionHistoricalMetrics,
-    ProductionPerformanceMetrics as MonitoringProductionPerformanceMetrics,
-    ProductionPerformanceData,
-    ProductionViolationDetector,
-    ProductionViolationPattern,
-    ProductionDetectionRule,
-    ProductionViolationSeverity,
-    ProductionPrivacyViolation,
-    ProductionViolationImpact,
-    ProductionViolationThresholds,
-    ProductionAnalyticsEngine,
-    ProductionAnalyticsData,
-    ProductionPrivacyTrend,
-    ProductionAnonymityTrend,
-    ProductionMixingTrend,
-    ProductionCrossChainTrend,
-    ProductionPerformanceTrend,
-    ProductionSecurityTrend,
-    ProductionTrendDirection,
-    ProductionAnalyticsModel,
-    ProductionTrendAnalysis,
-    ProductionTrendAnalysisResult,
-    ProductionRiskAssessment,
-    ProductionAlertingSystem,
-    ProductionAlertRule,
-    ProductionPrivacyAlert,
-    ProductionAlertStatus,
-    ProductionAlertChannel,
-    ProductionDashboardData,
-    ProductionDashboardMetrics,
-    ProductionDashboardChart,
-    ProductionChartDataPoint,
-    ProductionDashboardStatus,
-    ProductionPerformanceMonitoring,
-    ProductionPerformanceStats,
-    ProductionPrivacyReport,
-};
 
-pub use production_performance_optimization::{
-    ProductionPerformanceOptimizationSystem,
-    ProductionPerformanceOptimizer,
-    ProductionCacheManager,
-    ProductionBatchProcessor,
-    ProductionParallelProcessor,
-    ProductionOptimizationMetrics,
-    ProductionOptimizerConfig,
-    ProductionOptimizationLevel,
-    ProductionOptimizerState,
-    ProductionOptimizerStats,
-    ProductionCacheConfig,
-    ProductionCacheStrategy,
-    ProductionCacheState,
-    ProductionCacheStats,
-    ProductionBatchConfig,
-    ProductionBatchStrategy,
-    ProductionBatchState,
-    ProductionBatchStats,
-    ProductionParallelConfig,
-    ProductionParallelStrategy,
-    ProductionParallelState,
-    ProductionParallelStats,
-    ProductionOptimizationResult,
-};
 
-pub use production_deployment_prep::{
-    ProductionDeploymentPrep,
-    ProductionDeploymentChecklist,
-    ProductionChecklistItem,
-    ProductionChecklistCategory,
-    ProductionCriticalityLevel,
-    ProductionChecklistStatus,
-    ProductionReadinessAssessment,
-    ProductionIssue,
-    ProductionIssueSeverity,
-    ProductionIssueStatus,
-    ProductionRecommendation,
-    ProductionRecommendationPriority,
-    ProductionImplementationEffort,
-    ProductionRecommendationStatus,
-    ProductionDeploymentConfig,
-    ProductionDeploymentEnvironment,
-    ProductionDeploymentStrategy,
-    ProductionDeploymentRequirements,
-    ProductionSystemRequirements,
-    ProductionNetworkRequirements,
-    ProductionSecurityRequirements,
-    ProductionValidation,
-    ProductionValidationResult,
-    ProductionValidationStatus,
-    ProductionValidationStats,
-    ProductionReadinessReport,
-    ProductionSystemValidationReport,
-};
 
 /// Privacy feature flags
 #[derive(Debug, Clone, Serialize, Deserialize)]

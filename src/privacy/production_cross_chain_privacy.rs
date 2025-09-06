@@ -2,10 +2,9 @@
 // Implements actual cross-chain privacy proofs for production-grade security
 // Replaces placeholder implementations with production-grade cryptography
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use hex;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
