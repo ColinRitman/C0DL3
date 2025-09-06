@@ -641,8 +641,8 @@ impl ProductionPrivacyMonitoringSystem {
         Ok(ProductionPrivacyReport {
             report_id: self.generate_report_id()?,
             generated_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            real_time_metrics,
-            violations,
+            real_time_metrics: real_time_metrics.clone(),
+            violations: violations.clone(),
             analytics,
             dashboard,
             summary: self.generate_production_report_summary(&real_time_metrics, &violations)?,
@@ -652,9 +652,9 @@ impl ProductionPrivacyMonitoringSystem {
     // Private helper methods for production implementation
     
     /// Collect production privacy metrics (PRODUCTION IMPLEMENTATION)
-    fn collect_production_privacy_metrics(&mut self, transaction: &PrivateTransaction) -> Result<()> {
+    fn collect_production_privacy_metrics(&mut self, _transaction: &PrivateTransaction) -> Result<()> {
         // PRODUCTION IMPLEMENTATION: Collect actual privacy metrics
-        let mut metrics = &mut self.metrics_collector.real_time_metrics;
+        let metrics = &mut self.metrics_collector.real_time_metrics;
         
         // Update transaction count with actual measurement
         metrics.transactions_per_second += 1.0;
@@ -724,7 +724,7 @@ impl ProductionPrivacyMonitoringSystem {
     }
     
     /// Perform production privacy analytics (PRODUCTION IMPLEMENTATION)
-    fn perform_production_privacy_analytics(&mut self, transaction: &PrivateTransaction) -> Result<()> {
+    fn perform_production_privacy_analytics(&mut self, _transaction: &PrivateTransaction) -> Result<()> {
         // PRODUCTION IMPLEMENTATION: Perform actual privacy analytics
         let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let metrics = &self.metrics_collector.real_time_metrics;
@@ -813,7 +813,7 @@ impl ProductionPrivacyMonitoringSystem {
     }
     
     /// Update production performance monitoring (PRODUCTION IMPLEMENTATION)
-    fn update_production_performance_monitoring(&mut self, monitoring_time: f64) -> Result<()> {
+    fn update_production_performance_monitoring(&mut self, _monitoring_time: f64) -> Result<()> {
         // PRODUCTION IMPLEMENTATION: Update actual performance monitoring
         self.performance_monitoring.performance_stats.total_measurements += 1;
         

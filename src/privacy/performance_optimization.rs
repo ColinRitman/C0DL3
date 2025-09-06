@@ -405,8 +405,9 @@ impl OptimizedPrivacySystem {
             proofs.sort_by_key(|(_, proof)| proof.access_count);
             
             let to_remove = proofs.len() - cache.max_cache_size + 100; // Remove 100 extra
-            for (key, _) in proofs.iter().take(to_remove) {
-                cache.proofs.remove(*key);
+            let keys_to_remove: Vec<_> = proofs.iter().take(to_remove).map(|(key, _)| *key).collect();
+            for key in keys_to_remove {
+                cache.proofs.remove(key);
             }
         }
         
@@ -479,7 +480,7 @@ impl OptimizedPrivacySystem {
     
     async fn process_single_transaction(
         transaction: PrivateTransaction,
-        cache: Arc<RwLock<ProofCache>>,
+        _cache: Arc<RwLock<ProofCache>>,
     ) -> Result<Vec<u8>> {
         // Generate proof for single transaction
         let mut proof_data = Vec::new();
@@ -623,7 +624,7 @@ impl PerformanceBenchmark {
         
         let avg_time = times.iter().sum::<f64>() / times.len() as f64;
         let min_time = times.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let max_time = times.iter().fold(0.0, |a, &b| a.max(b));
+        let max_time = times.iter().fold(0.0_f64, |a, &b| a.max(b));
         
         // Calculate standard deviation
         let variance = times.iter()

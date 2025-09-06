@@ -272,7 +272,7 @@ impl ProductionPerformanceOptimizationSystem {
     // Private helper methods for production implementation
     
     /// Apply proof generation optimizations (PRODUCTION IMPLEMENTATION)
-    fn apply_proof_generation_optimizations(&mut self, boojum_system: &mut ProductionBoojumStarkSystem) -> Result<ProductionOptimizationResult> {
+    fn apply_proof_generation_optimizations(&mut self, _boojum_system: &mut ProductionBoojumStarkSystem) -> Result<ProductionOptimizationResult> {
         // PRODUCTION IMPLEMENTATION: Apply actual proof generation optimizations
         
         // Optimize memory usage

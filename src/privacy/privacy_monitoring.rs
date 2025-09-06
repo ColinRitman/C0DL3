@@ -578,8 +578,8 @@ impl PrivacyMonitoringSystem {
         Ok(PrivacyReport {
             report_id: self.generate_report_id()?,
             generated_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            real_time_metrics,
-            violations,
+            real_time_metrics: real_time_metrics.clone(),
+            violations: violations.clone(),
             analytics,
             dashboard,
             summary: self.generate_report_summary(&real_time_metrics, &violations)?,
@@ -588,7 +588,7 @@ impl PrivacyMonitoringSystem {
     
     // Private helper methods
     
-    fn update_real_time_metrics(&self, transaction: &PrivateTransaction) -> Result<()> {
+    fn update_real_time_metrics(&self, _transaction: &PrivateTransaction) -> Result<()> {
         let mut collector = self.metrics_collector.lock().unwrap();
         
         // Update transaction count (simplified)
@@ -633,7 +633,7 @@ impl PrivacyMonitoringSystem {
         Ok(())
     }
     
-    fn update_analytics(&self, transaction: &PrivateTransaction) -> Result<()> {
+    fn update_analytics(&self, _transaction: &PrivateTransaction) -> Result<()> {
         let mut engine = self.analytics_engine.lock().unwrap();
         let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         

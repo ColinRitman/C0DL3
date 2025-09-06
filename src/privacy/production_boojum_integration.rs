@@ -67,7 +67,7 @@ pub struct ProductionProofParameters {
 }
 
 /// Production FRI parameters
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionFriParameters {
     /// FRI folding factor
     pub folding_factor: u32,
@@ -82,7 +82,7 @@ pub struct ProductionFriParameters {
 }
 
 /// Production constraint parameters
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionConstraintParameters {
     /// Number of constraints
     pub num_constraints: u32,
@@ -97,7 +97,7 @@ pub struct ProductionConstraintParameters {
 }
 
 /// Production Boojum parameters
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionBoojumParameters {
     /// Boojum version
     pub boojum_version: String,
@@ -108,7 +108,7 @@ pub struct ProductionBoojumParameters {
 }
 
 /// Production Boojum configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionBoojumConfig {
     /// Enable parallel processing
     pub parallel_processing: bool,
@@ -121,7 +121,7 @@ pub struct ProductionBoojumConfig {
 }
 
 /// Production optimization settings
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionOptimizationSettings {
     /// Memory pool size
     pub memory_pool_size: usize,
@@ -134,7 +134,7 @@ pub struct ProductionOptimizationSettings {
 }
 
 /// Production prover configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionProverConfig {
     /// Prover type
     pub prover_type: String,
@@ -147,7 +147,7 @@ pub struct ProductionProverConfig {
 }
 
 /// Production prover limits
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductionProverLimits {
     /// Maximum constraint count
     pub max_constraints: u32,
@@ -544,6 +544,7 @@ impl ProductionBoojumStarkSystem {
         // Update performance metrics
         self.update_performance_metrics(generation_time, 0.0, boojum_proof_data.len())?;
         
+        let proof_size = boojum_proof_data.len();
         Ok(ProductionBoojumStarkProof {
             boojum_proof_data,
             public_inputs,
@@ -558,14 +559,14 @@ impl ProductionBoojumStarkSystem {
                 boojum_version: self.proof_params.boojum_params.boojum_version.clone(),
                 prover_config: self.boojum_prover.config.clone(),
                 generation_time_ms: generation_time,
-                proof_size_bytes: boojum_proof_data.len(),
+                proof_size_bytes: proof_size,
             },
             performance_metrics: ProofPerformanceMetrics {
                 generation_time_ms: generation_time,
                 verification_time_ms: 0.0, // Will be updated during verification
                 memory_usage_mb: self.boojum_prover.state.memory_usage as f64 / (1024.0 * 1024.0),
                 cpu_usage_percent: self.boojum_prover.state.cpu_usage,
-                proof_size_bytes: boojum_proof_data.len(),
+                proof_size_bytes: proof_size,
             },
         })
     }
@@ -595,6 +596,7 @@ impl ProductionBoojumStarkSystem {
         // Update performance metrics
         self.update_performance_metrics(generation_time, 0.0, boojum_proof_data.len())?;
         
+        let proof_size = boojum_proof_data.len();
         Ok(ProductionBoojumStarkProof {
             boojum_proof_data,
             public_inputs,
@@ -609,14 +611,14 @@ impl ProductionBoojumStarkSystem {
                 boojum_version: self.proof_params.boojum_params.boojum_version.clone(),
                 prover_config: self.boojum_prover.config.clone(),
                 generation_time_ms: generation_time,
-                proof_size_bytes: boojum_proof_data.len(),
+                proof_size_bytes: proof_size,
             },
             performance_metrics: ProofPerformanceMetrics {
                 generation_time_ms: generation_time,
                 verification_time_ms: 0.0,
                 memory_usage_mb: self.boojum_prover.state.memory_usage as f64 / (1024.0 * 1024.0),
                 cpu_usage_percent: self.boojum_prover.state.cpu_usage,
-                proof_size_bytes: boojum_proof_data.len(),
+                proof_size_bytes: proof_size,
             },
         })
     }
@@ -819,7 +821,7 @@ impl ProductionBoojumStarkSystem {
         
         // Update average proof size
         self.boojum_prover.stats.avg_proof_size_bytes = 
-            (self.boojum_prover.stats.avg_proof_size_bytes * (total_proofs - 1) + proof_size) / total_proofs as usize;
+            (self.boojum_prover.stats.avg_proof_size_bytes * (total_proofs - 1) as usize + proof_size) / total_proofs as usize;
         
         Ok(())
     }
@@ -845,7 +847,7 @@ impl ProductionBoojumStarkSystem {
     }
     
     /// Update performance metrics
-    fn update_performance_metrics(&mut self, generation_time: f64, verification_time: f64, proof_size: usize) -> Result<()> {
+    fn update_performance_metrics(&mut self, generation_time: f64, verification_time: f64, _proof_size: usize) -> Result<()> {
         // Update proof generation performance
         if generation_time > 0.0 {
             let perf = &mut self.performance_metrics.proof_generation_performance;

@@ -239,6 +239,7 @@ impl ProductionCrossChainPrivacyCoordinator {
         // Update metrics
         self.update_cross_chain_metrics(generation_time)?;
         
+        let proof_size = cross_chain_proof_data.len();
         Ok(ProductionCrossChainPrivacyProof {
             cross_chain_proof_data,
             source_chain_proof,
@@ -254,14 +255,14 @@ impl ProductionCrossChainPrivacyCoordinator {
                 protocol: "production_cross_chain_privacy_v1".to_string(),
                 bridge_type: "production_bridge".to_string(),
                 generation_time_ms: generation_time,
-                proof_size_bytes: cross_chain_proof_data.len(),
+                proof_size_bytes: proof_size,
             },
             performance_metrics: CrossChainProofPerformanceMetrics {
                 generation_time_ms: generation_time,
                 verification_time_ms: 0.0, // Will be updated during verification
                 memory_usage_mb: self.proof_generator.state.memory_usage as f64 / (1024.0 * 1024.0),
                 cpu_usage_percent: self.proof_generator.state.cpu_usage,
-                proof_size_bytes: cross_chain_proof_data.len(),
+                proof_size_bytes: proof_size,
                 cross_chain_latency_ms: generation_time, // Simulated latency
             },
         })
@@ -321,7 +322,7 @@ impl ProductionCrossChainPrivacyCoordinator {
     }
     
     /// Generate source chain proof
-    fn generate_source_chain_proof(&mut self, source_tx: &PrivateTransaction) -> Result<Vec<u8>> {
+    fn generate_source_chain_proof(&mut self, _source_tx: &PrivateTransaction) -> Result<Vec<u8>> {
         // Generate Boojum proof for source transaction
         let boojum_proof = self.boojum_system.prove_transaction_validity(1000, 5000)?; // Placeholder values
         Ok(boojum_proof.boojum_proof_data)
@@ -400,7 +401,7 @@ impl ProductionCrossChainPrivacyCoordinator {
             (self.proof_generator.stats.avg_generation_time_ms * (total_proofs - 1) as f64 + generation_time) / total_proofs as f64;
         
         self.proof_generator.stats.avg_proof_size_bytes = 
-            (self.proof_generator.stats.avg_proof_size_bytes * (total_proofs - 1) + proof_size) / total_proofs as usize;
+            (self.proof_generator.stats.avg_proof_size_bytes * (total_proofs - 1) as usize + proof_size) / total_proofs as usize;
         
         Ok(())
     }

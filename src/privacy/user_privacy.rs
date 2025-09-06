@@ -57,15 +57,8 @@ pub struct PrivateTransaction {
 }
 
 /// STARK proof structure for user-level privacy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StarkProof {
-    /// Proof data (simplified implementation)
-    pub proof_data: Vec<u8>,
-    /// Public inputs for verification
-    pub public_inputs: Vec<u8>,
-    /// Proof type identifier
-    pub proof_type: String,
-}
+// Use StarkProof from stark_proofs module
+use crate::privacy::stark_proofs::StarkProof;
 
 /// Private block structure with encrypted transactions
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -89,11 +89,12 @@ impl ProductionStarkProofSystem {
     /// Create new production STARK proof system
     pub fn new() -> Result<Self> {
         // Configure proof options for production-grade security
+        // Note: Simplified for now - will implement full Winter-crypto integration later
         let proof_options = ProofOptions::new(
             42, // Extension degree
             8,  // Grinding factor
             2,  // Number of queries
-            winter_crypto::hashers::Blake3_256::new(),
+            winter_crypto::hashers::Blake3_256::default(),
         );
         
         // Configure FRI options for optimal performance
@@ -106,7 +107,7 @@ impl ProductionStarkProofSystem {
         Ok(Self {
             proof_options,
             fri_options,
-            hasher: Blake3_256::new(),
+            hasher: Blake3_256::default(),
         })
     }
     

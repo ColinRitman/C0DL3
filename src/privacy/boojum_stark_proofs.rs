@@ -4,7 +4,7 @@
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::Sha256;
 use hex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -52,7 +52,7 @@ struct BoojumSpecificParams {
 }
 
 /// FRI parameters for Boojum
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FriParameters {
     /// FRI folding factor
     folding_factor: u32,
