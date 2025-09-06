@@ -1,12 +1,12 @@
-# zkC0DL3 ᦕderados (Validators) - Complete Info Guide
+# zkC0DL3 𝝣lderado (Validators) - Complete Info Guide
 
 ## 🏛️ Overview
 
-**ᦕderados** (pronounced "Eldorados") are the validator nodes in the zkC0DL3 ecosystem. These validators play a crucial role in maintaining network security, processing transactions, and ensuring consensus across the zkSync hyperchain implementation.
+**𝝣lderado** (pronounced "Eldorados") are the validator nodes in the zkC0DL3 ecosystem. These validators play a crucial role in maintaining network security, processing transactions, and ensuring consensus across the zkSync hyperchain implementation.
 
-## 🎯 What are ᦕderados?
+## 🎯 What are 𝝣lderado?
 
-ᦕderados are specialized validator nodes that:
+𝝣lderado are specialized validator nodes that:
 
 - **Validate Transactions**: Process and validate all transactions on the zkC0DL3 network
 - **Generate ZK Proofs**: Create STARK-based zero-knowledge proofs for block validity
@@ -20,7 +20,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    ᦕderado Validator                        │
+│                    𝝣lderado Validator                       │
 ├─────────────────────────────────────────────────────────────┤
 │  🛡️  Validation Engine    │  ⛏️  Mining Engine              │
 │  • Transaction Validation │  • Block Mining                │
@@ -177,7 +177,7 @@ For a professional visual experience:
 
 # Navigate to validator management
 🛡️ Validator Management
-├── 👑 View Eldorados (C0DL3 Validators)
+├── 👑 View 𝝣lderado (C0DL3 Validators)
 ├── 🔥 View Elderfiers (Fuego Validators)
 ├── 💰 Stake Tokens to Validator
 ├── 📊 Validator Performance
@@ -201,7 +201,7 @@ Validators can monitor their performance through:
 ```
 🛡️ VALIDATOR PERFORMANCE DASHBOARD
 ═══════════════════════════════════════════════════════════════
-👑 C0DL3 ELDORADO VALIDATOR INFO
+👑 C0DL3 𝝣lderado VALIDATOR INFO
 ═══════════════════════════════════════════════════════════════
 Address: 0x1111111111111111111111111111111111111111
 Status: ✅ Active
@@ -392,6 +392,6 @@ RPC_PORT=9944
 
 ---
 
-**ᦕderados** are the backbone of the zkC0DL3 network, providing security, validation, and consensus. By becoming a validator, you contribute to the network's security while earning rewards for your participation.
+**𝝣lderado** are the backbone of the zkC0DL3 network, providing security, validation, and consensus. By becoming a validator, you contribute to the network's security while earning rewards for your participation.
 
 *For the most up-to-date information, always refer to the latest documentation and community resources.*
