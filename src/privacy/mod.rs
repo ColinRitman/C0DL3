@@ -43,7 +43,10 @@ pub use user_privacy::{
     StarkProof,
 };
 
-pub use stark_proofs::StarkProofSystem;
+// Use production STARK system instead of placeholder
+pub use production_stark_proofs::ProductionStarkProofSystem as StarkProofSystem;
+// Keep placeholder for reference
+pub use stark_proofs::StarkProofSystem as PlaceholderStarkProofSystem;
 pub use amount_commitments::{
     AmountCommitment,
     RangeProof,
