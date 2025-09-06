@@ -1,0 +1,461 @@
+{
+  "collection": {
+    "name": "𝝣lderado Genesis Collection",
+    "description": "The inaugural NFT collection celebrating the genesis of zkC0DL3's 𝝣lderado validators. These 21 unique NFTs represent the founding validators who will secure and validate the zkSync hyperchain implementation.",
+    "symbol": "ELDERADO",
+    "total_supply": 21,
+    "genesis_block": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "contract_address": "0x0000000000000000000000000000000000000000",
+    "creator": "zkC0DL3 Foundation",
+    "royalty_percentage": 5.0,
+    "mint_price": "0.1 ETH",
+    "mint_date": "2024-01-01T00:00:00Z",
+    "blockchain": "zkC0DL3 Hyperchain",
+    "standard": "ERC-721",
+    "image_base_uri": "https://ipfs.io/ipfs/QmElderadoGenesisCollection/",
+    "metadata_base_uri": "https://ipfs.io/ipfs/QmElderadoGenesisMetadata/"
+  },
+  "nfts": [
+    {
+      "token_id": 1,
+      "name": "𝝣lderado #001 - The Founder",
+      "description": "The first 𝝣lderado validator, representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_001_founder.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Genesis Founder"},
+        {"trait_type": "Rarity", "value": "Legendary"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:01Z"
+    },
+    {
+      "token_id": 2,
+      "name": "𝝣lderado #002 - The Guardian",
+      "description": "A vigilant 𝝣lderado validator dedicated to protecting the network's integrity and ensuring secure transaction validation.",
+      "image": "elderado_002_guardian.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Guardian"},
+        {"trait_type": "Rarity", "value": "Epic"},
+        {"trait_type": "Power Level", "value": 95},
+        {"trait_type": "Stake Multiplier", "value": "2.5x"},
+        {"trait_type": "Special Ability", "value": "Shield Wall"},
+        {"trait_type": "Background", "value": "Deep Blue"},
+        {"trait_type": "Crown", "value": "Guardian Helm"},
+        {"trait_type": "Aura", "value": "Protective Shield"},
+        {"trait_type": "Eyes", "value": "Watchful"},
+        {"trait_type": "Accessory", "value": "Guardian Sword"}
+      ],
+      "rarity_score": 850,
+      "mint_timestamp": "2024-01-01T00:00:02Z"
+    },
+    {
+      "token_id": 3,
+      "name": "𝝣lderado #003 - The Architect",
+      "description": "An innovative 𝝣lderado validator specializing in ZK proof generation and advanced cryptographic validation.",
+      "image": "elderado_003_architect.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "ZK Architect"},
+        {"trait_type": "Rarity", "value": "Epic"},
+        {"trait_type": "Power Level", "value": 90},
+        {"trait_type": "Stake Multiplier", "value": "2.3x"},
+        {"trait_type": "Special Ability", "value": "Proof Mastery"},
+        {"trait_type": "Background", "value": "Purple Haze"},
+        {"trait_type": "Crown", "value": "Architect's Cap"},
+        {"trait_type": "Aura", "value": "Mathematical Patterns"},
+        {"trait_type": "Eyes", "value": "Calculating"},
+        {"trait_type": "Accessory", "value": "ZK Compass"}
+      ],
+      "rarity_score": 800,
+      "mint_timestamp": "2024-01-01T00:00:03Z"
+    },
+    {
+      "token_id": 4,
+      "name": "𝝣lderado #004 - The Miner",
+      "description": "A dedicated 𝝣lderado validator focused on efficient block mining and reward optimization.",
+      "image": "elderado_004_miner.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Block Miner"},
+        {"trait_type": "Rarity", "value": "Rare"},
+        {"trait_type": "Power Level", "value": 85},
+        {"trait_type": "Stake Multiplier", "value": "2.0x"},
+        {"trait_type": "Special Ability", "value": "Hash Boost"},
+        {"trait_type": "Background", "value": "Mining Gold"},
+        {"trait_type": "Crown", "value": "Miner's Cap"},
+        {"trait_type": "Aura", "value": "Pickaxe Glow"},
+        {"trait_type": "Eyes", "value": "Determined"},
+        {"trait_type": "Accessory", "value": "Golden Pickaxe"}
+      ],
+      "rarity_score": 700,
+      "mint_timestamp": "2024-01-01T00:00:04Z"
+    },
+    {
+      "token_id": 5,
+      "name": "𝝣lderado #005 - The Oracle",
+      "description": "A wise 𝝣lderado validator with deep knowledge of network state and predictive capabilities.",
+      "image": "elderado_005_oracle.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Oracle"},
+        {"trait_type": "Rarity", "value": "Epic"},
+        {"trait_type": "Power Level", "value": 88},
+        {"trait_type": "Stake Multiplier", "value": "2.2x"},
+        {"trait_type": "Special Ability", "value": "Future Sight"},
+        {"trait_type": "Background", "value": "Mystic Purple"},
+        {"trait_type": "Crown", "value": "Oracle's Diadem"},
+        {"trait_type": "Aura", "value": "Crystal Vision"},
+        {"trait_type": "Eyes", "value": "All-Seeing"},
+        {"trait_type": "Accessory", "value": "Crystal Ball"}
+      ],
+      "rarity_score": 750,
+      "mint_timestamp": "2024-01-01T00:00:05Z"
+    },
+    {
+      "token_id": 6,
+      "name": "𝝣lderado #006 - The Sentinel",
+      "description": "A watchful 𝝣lderado validator maintaining constant vigilance over network security and peer connections.",
+      "image": "elderado_006_sentinel.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Sentinel"},
+        {"trait_type": "Rarity", "value": "Rare"},
+        {"trait_type": "Power Level", "value": 82},
+        {"trait_type": "Stake Multiplier", "value": "1.8x"},
+        {"trait_type": "Special Ability", "value": "Eagle Eye"},
+        {"trait_type": "Background", "value": "Forest Green"},
+        {"trait_type": "Crown", "value": "Sentinel's Helm"},
+        {"trait_type": "Aura", "value": "Watchful Glow"},
+        {"trait_type": "Eyes", "value": "Alert"},
+        {"trait_type": "Accessory", "value": "Spyglass"}
+      ],
+      "rarity_score": 650,
+      "mint_timestamp": "2024-01-01T00:00:06Z"
+    },
+    {
+      "token_id": 7,
+      "name": "𝝣lderado #007 - The Scholar",
+      "description": "An intellectual 𝝣lderado validator specializing in cryptographic research and protocol development.",
+      "image": "elderado_007_scholar.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Crypto Scholar"},
+        {"trait_type": "Rarity", "value": "Rare"},
+        {"trait_type": "Power Level", "value": 80},
+        {"trait_type": "Stake Multiplier", "value": "1.7x"},
+        {"trait_type": "Special Ability", "value": "Knowledge Boost"},
+        {"trait_type": "Background", "value": "Library Brown"},
+        {"trait_type": "Crown", "value": "Scholar's Cap"},
+        {"trait_type": "Aura", "value": "Wisdom Aura"},
+        {"trait_type": "Eyes", "value": "Studious"},
+        {"trait_type": "Accessory", "value": "Ancient Tome"}
+      ],
+      "rarity_score": 600,
+      "mint_timestamp": "2024-01-01T00:00:07Z"
+    },
+    {
+      "token_id": 8,
+      "name": "𝝣lderado #008 - The Warrior",
+      "description": "A battle-ready 𝝣lderado validator prepared to defend the network against any threats or attacks.",
+      "image": "elderado_008_warrior.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Warrior"},
+        {"trait_type": "Rarity", "value": "Rare"},
+        {"trait_type": "Power Level", "value": 87},
+        {"trait_type": "Stake Multiplier", "value": "1.9x"},
+        {"trait_type": "Special Ability", "value": "Battle Fury"},
+        {"trait_type": "Background", "value": "Battle Red"},
+        {"trait_type": "Crown", "value": "Warrior's Helm"},
+        {"trait_type": "Aura", "value": "Combat Aura"},
+        {"trait_type": "Eyes", "value": "Fierce"},
+        {"trait_type": "Accessory", "value": "Battle Axe"}
+      ],
+      "rarity_score": 680,
+      "mint_timestamp": "2024-01-01T00:00:08Z"
+    },
+    {
+      "token_id": 9,
+      "name": "𝝣lderado #009 - The Merchant",
+      "description": "A commerce-focused 𝝣lderado validator specializing in transaction processing and fee optimization.",
+      "image": "elderado_009_merchant.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Trade Merchant"},
+        {"trait_type": "Rarity", "value": "Uncommon"},
+        {"trait_type": "Power Level", "value": 75},
+        {"trait_type": "Stake Multiplier", "value": "1.5x"},
+        {"trait_type": "Special Ability", "value": "Fee Reduction"},
+        {"trait_type": "Background", "value": "Market Gold"},
+        {"trait_type": "Crown", "value": "Merchant's Cap"},
+        {"trait_type": "Aura", "value": "Coin Glow"},
+        {"trait_type": "Eyes", "value": "Calculating"},
+        {"trait_type": "Accessory", "value": "Golden Scales"}
+      ],
+      "rarity_score": 500,
+      "mint_timestamp": "2024-01-01T00:00:09Z"
+    },
+    {
+      "token_id": 10,
+      "name": "𝝣lderado #010 - The Explorer",
+      "description": "An adventurous 𝝣lderado validator discovering new network paths and optimizing peer connections.",
+      "image": "elderado_010_explorer.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Explorer"},
+        {"trait_type": "Rarity", "value": "Uncommon"},
+        {"trait_type": "Power Level", "value": 78},
+        {"trait_type": "Stake Multiplier", "value": "1.6x"},
+        {"trait_type": "Special Ability", "value": "Path Finding"},
+        {"trait_type": "Background", "value": "Adventure Green"},
+        {"trait_type": "Crown", "value": "Explorer's Hat"},
+        {"trait_type": "Aura", "value": "Discovery Glow"},
+        {"trait_type": "Eyes", "value": "Curious"},
+        {"trait_type": "Accessory", "value": "Compass Rose"}
+      ],
+      "rarity_score": 550,
+      "mint_timestamp": "2024-01-01T00:00:10Z"
+    },
+    {
+      "token_id": 11,
+      "name": "𝝣lderado #011 - The Healer",
+      "description": "A restorative 𝝣lderado validator focused on network recovery and maintaining optimal performance.",
+      "image": "elderado_011_healer.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Healer"},
+        {"trait_type": "Rarity", "value": "Uncommon"},
+        {"trait_type": "Power Level", "value": 76},
+        {"trait_type": "Stake Multiplier", "value": "1.4x"},
+        {"trait_type": "Special Ability", "value": "Network Recovery"},
+        {"trait_type": "Background", "value": "Healing White"},
+        {"trait_type": "Crown", "value": "Healer's Circlet"},
+        {"trait_type": "Aura", "value": "Healing Light"},
+        {"trait_type": "Eyes", "value": "Compassionate"},
+        {"trait_type": "Accessory", "value": "Healing Staff"}
+      ],
+      "rarity_score": 480,
+      "mint_timestamp": "2024-01-01T00:00:11Z"
+    },
+    {
+      "token_id": 12,
+      "name": "𝝣lderado #012 - The Builder",
+      "description": "A construction-focused 𝝣lderado validator building and maintaining network infrastructure.",
+      "image": "elderado_012_builder.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Infrastructure Builder"},
+        {"trait_type": "Rarity", "value": "Uncommon"},
+        {"trait_type": "Power Level", "value": 74},
+        {"trait_type": "Stake Multiplier", "value": "1.3x"},
+        {"trait_type": "Special Ability", "value": "Infrastructure Boost"},
+        {"trait_type": "Background", "value": "Construction Orange"},
+        {"trait_type": "Crown", "value": "Builder's Hard Hat"},
+        {"trait_type": "Aura", "value": "Construction Glow"},
+        {"trait_type": "Eyes", "value": "Focused"},
+        {"trait_type": "Accessory", "value": "Builder's Hammer"}
+      ],
+      "rarity_score": 450,
+      "mint_timestamp": "2024-01-01T00:00:12Z"
+    },
+    {
+      "token_id": 13,
+      "name": "𝝣lderado #013 - The Navigator",
+      "description": "A guidance-focused 𝝣lderado validator helping other validators find optimal network routes.",
+      "image": "elderado_013_navigator.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Route Navigator"},
+        {"trait_type": "Rarity", "value": "Uncommon"},
+        {"trait_type": "Power Level", "value": 72},
+        {"trait_type": "Stake Multiplier", "value": "1.2x"},
+        {"trait_type": "Special Ability", "value": "Route Optimization"},
+        {"trait_type": "Background", "value": "Navigation Blue"},
+        {"trait_type": "Crown", "value": "Navigator's Cap"},
+        {"trait_type": "Aura", "value": "Guidance Light"},
+        {"trait_type": "Eyes", "value": "Guiding"},
+        {"trait_type": "Accessory", "value": "Navigation Chart"}
+      ],
+      "rarity_score": 420,
+      "mint_timestamp": "2024-01-01T00:00:13Z"
+    },
+    {
+      "token_id": 14,
+      "name": "𝝣lderado #014 - The Librarian",
+      "description": "A knowledge-keeping 𝝣lderado validator maintaining network history and transaction records.",
+      "image": "elderado_014_librarian.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Data Librarian"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 70},
+        {"trait_type": "Stake Multiplier", "value": "1.1x"},
+        {"trait_type": "Special Ability", "value": "Data Preservation"},
+        {"trait_type": "Background", "value": "Library Green"},
+        {"trait_type": "Crown", "value": "Librarian's Glasses"},
+        {"trait_type": "Aura", "value": "Knowledge Aura"},
+        {"trait_type": "Eyes", "value": "Studious"},
+        {"trait_type": "Accessory", "value": "Ancient Scroll"}
+      ],
+      "rarity_score": 380,
+      "mint_timestamp": "2024-01-01T00:00:14Z"
+    },
+    {
+      "token_id": 15,
+      "name": "𝝣lderado #015 - The Messenger",
+      "description": "A communication-focused 𝝣lderado validator facilitating peer-to-peer message delivery.",
+      "image": "elderado_015_messenger.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Messenger"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 68},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Fast Delivery"},
+        {"trait_type": "Background", "value": "Message Yellow"},
+        {"trait_type": "Crown", "value": "Messenger's Cap"},
+        {"trait_type": "Aura", "value": "Speed Aura"},
+        {"trait_type": "Eyes", "value": "Alert"},
+        {"trait_type": "Accessory", "value": "Message Scroll"}
+      ],
+      "rarity_score": 350,
+      "mint_timestamp": "2024-01-01T00:00:15Z"
+    },
+    {
+      "token_id": 16,
+      "name": "𝝣lderado #016 - The Farmer",
+      "description": "A reward-focused 𝝣lderado validator optimizing staking rewards and yield generation.",
+      "image": "elderado_016_farmer.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Reward Farmer"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 66},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Yield Boost"},
+        {"trait_type": "Background", "value": "Farm Green"},
+        {"trait_type": "Crown", "value": "Farmer's Hat"},
+        {"trait_type": "Aura", "value": "Harvest Glow"},
+        {"trait_type": "Eyes", "value": "Patient"},
+        {"trait_type": "Accessory", "value": "Golden Scythe"}
+      ],
+      "rarity_score": 320,
+      "mint_timestamp": "2024-01-01T00:00:16Z"
+    },
+    {
+      "token_id": 17,
+      "name": "𝝣lderado #017 - The Scout",
+      "description": "A reconnaissance-focused 𝝣lderado validator monitoring network conditions and peer status.",
+      "image": "elderado_017_scout.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Scout"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 64},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Reconnaissance"},
+        {"trait_type": "Background", "value": "Scout Brown"},
+        {"trait_type": "Crown", "value": "Scout's Cap"},
+        {"trait_type": "Aura", "value": "Stealth Aura"},
+        {"trait_type": "Eyes", "value": "Observant"},
+        {"trait_type": "Accessory", "value": "Scout's Binoculars"}
+      ],
+      "rarity_score": 300,
+      "mint_timestamp": "2024-01-01T00:00:17Z"
+    },
+    {
+      "token_id": 18,
+      "name": "𝝣lderado #018 - The Artisan",
+      "description": "A craft-focused 𝝣lderado validator specializing in transaction optimization and gas efficiency.",
+      "image": "elderado_018_artisan.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Transaction Artisan"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 62},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Gas Optimization"},
+        {"trait_type": "Background", "value": "Artisan Purple"},
+        {"trait_type": "Crown", "value": "Artisan's Cap"},
+        {"trait_type": "Aura", "value": "Craft Aura"},
+        {"trait_type": "Eyes", "value": "Skilled"},
+        {"trait_type": "Accessory", "value": "Crafting Tools"}
+      ],
+      "rarity_score": 280,
+      "mint_timestamp": "2024-01-01T00:00:18Z"
+    },
+    {
+      "token_id": 19,
+      "name": "𝝣lderado #019 - The Steward",
+      "description": "A maintenance-focused 𝝣lderado validator ensuring network stability and continuous operation.",
+      "image": "elderado_019_steward.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Network Steward"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 60},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Stability Boost"},
+        {"trait_type": "Background", "value": "Steward Gray"},
+        {"trait_type": "Crown", "value": "Steward's Cap"},
+        {"trait_type": "Aura", "value": "Stability Aura"},
+        {"trait_type": "Eyes", "value": "Reliable"},
+        {"trait_type": "Accessory", "value": "Maintenance Kit"}
+      ],
+      "rarity_score": 260,
+      "mint_timestamp": "2024-01-01T00:00:19Z"
+    },
+    {
+      "token_id": 20,
+      "name": "𝝣lderado #020 - The Apprentice",
+      "description": "A learning-focused 𝝣lderado validator developing skills and gaining experience in network validation.",
+      "image": "elderado_020_apprentice.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Learning Apprentice"},
+        {"trait_type": "Rarity", "value": "Common"},
+        {"trait_type": "Power Level", "value": 58},
+        {"trait_type": "Stake Multiplier", "value": "1.0x"},
+        {"trait_type": "Special Ability", "value": "Skill Growth"},
+        {"trait_type": "Background", "value": "Apprentice Blue"},
+        {"trait_type": "Crown", "value": "Apprentice's Cap"},
+        {"trait_type": "Aura", "value": "Learning Aura"},
+        {"trait_type": "Eyes", "value": "Eager"},
+        {"trait_type": "Accessory", "value": "Learning Scroll"}
+      ],
+      "rarity_score": 240,
+      "mint_timestamp": "2024-01-01T00:00:20Z"
+    },
+    {
+      "token_id": 21,
+      "name": "𝝣lderado #021 - The Prodigy",
+      "description": "The final 𝝣lderado validator, representing the future potential and evolution of the zkC0DL3 network.",
+      "image": "elderado_021_prodigy.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "Future Prodigy"},
+        {"trait_type": "Rarity", "value": "Epic"},
+        {"trait_type": "Power Level", "value": 92},
+        {"trait_type": "Stake Multiplier", "value": "2.4x"},
+        {"trait_type": "Special Ability", "value": "Evolution Boost"},
+        {"trait_type": "Background", "value": "Future Silver"},
+        {"trait_type": "Crown", "value": "Prodigy's Crown"},
+        {"trait_type": "Aura", "value": "Evolution Glow"},
+        {"trait_type": "Eyes", "value": "Visionary"},
+        {"trait_type": "Accessory", "value": "Future Crystal"}
+      ],
+      "rarity_score": 900,
+      "mint_timestamp": "2024-01-01T00:00:21Z"
+    }
+  ],
+  "rarity_distribution": {
+    "Legendary": 1,
+    "Epic": 4,
+    "Rare": 4,
+    "Uncommon": 6,
+    "Common": 6
+  },
+  "total_rarity_score": 12000,
+  "average_rarity_score": 571.43,
+  "genesis_transaction": {
+    "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "block_number": 0,
+    "gas_used": 21000000,
+    "gas_price": "20000000000",
+    "from": "0x0000000000000000000000000000000000000000",
+    "to": "0x0000000000000000000000000000000000000000",
+    "value": "0",
+    "data": "0x",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "status": "success"
+  }
+}
