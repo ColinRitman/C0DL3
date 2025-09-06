@@ -28,7 +28,7 @@ contract ElderadoGenesisCollection is
     uint256 public constant MAX_SUPPLY = 21;
     uint256 public constant MINT_PRICE = 0.1 ether;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5% in basis points
-    uint256 public constant STAKING_AMOUNT = 1000000; // 1,000,000 tokens (staking requirement)
+    uint256 public constant STAKING_AMOUNT = 80000000000; // 80,000,000,000 HEAT tokens (staking requirement)
     
     // State variables
     Counters.Counter private _tokenIdCounter;
