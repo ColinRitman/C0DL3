@@ -13,6 +13,7 @@ The **𝝣lderado Genesis Collection** is the inaugural NFT collection celebrati
 - **Blockchain**: zkC0DL3 Hyperchain
 - **Mint Price**: 0.1 ETH
 - **Royalty**: 5%
+
 - **Transfer Restriction**: NFTs can only be sold for the staking amount (80,000,000,000 HEAT tokens)
 
 ## 👑 NFT Rarity Distribution

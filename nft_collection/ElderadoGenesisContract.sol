@@ -415,6 +415,7 @@ contract ElderadoGenesisCollection is
     }
     
     /**
+
      * @dev Override transfer to enforce staking amount restriction
      */
     function _beforeTokenTransfer(
@@ -423,6 +424,7 @@ contract ElderadoGenesisCollection is
         uint256 tokenId,
         uint256 batchSize
     ) internal override(ERC721, ERC721Enumerable) {
+
         // Allow minting (from address(0)) and burning (to address(0))
         if (from == address(0) || to == address(0)) {
             super._beforeTokenTransfer(from, to, tokenId, batchSize);
