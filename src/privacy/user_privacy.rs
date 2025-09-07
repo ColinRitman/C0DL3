@@ -18,6 +18,7 @@ use crate::privacy::{
 
 /// User-level privacy manager with elite cryptography standards
 /// Privacy is always enabled at maximum level (100) - no options needed
+
 #[derive(Clone)]
 pub struct UserPrivacyManager {
     /// Encryption key for address and timing privacy
@@ -58,8 +59,15 @@ pub struct PrivateTransaction {
 }
 
 /// STARK proof structure for user-level privacy
-// Use StarkProof from stark_proofs module
-use crate::privacy::stark_proofs::StarkProof;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StarkProof {
+    /// Proof data (simplified implementation)
+    pub proof_data: Vec<u8>,
+    /// Public inputs for verification
+    pub public_inputs: Vec<u8>,
+    /// Proof type identifier
+    pub proof_type: String,
+}
 
 /// Private block structure with encrypted transactions
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -50,14 +50,17 @@ curve25519-dalek = "4.0"   # Elliptic curves for commitments
 rand = "0.8"               # Cryptographically secure random number generation
 thiserror = "1.0"          # Error handling for privacy operations
 
-
 # Production STARK Proof Systems
-# Winter-crypto STARK prover (Facebook's production STARK system)
-winter-crypto = "0.13.1"
-winter-fri = "0.13.1"
-winter-prover = "0.13.1"
-# Note: Boojum repository not publicly available, using Winter-crypto instead
+# Boojum STARK prover (zkSync's production STARK system)
+boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
+# Winter-crypto as fallback (keeping for compatibility)
+winter-crypto = "0.8"     # Fallback STARK implementation
+winter-utils = "0.8"      # STARK utilities
+winter-fri = "0.8"        # FRI protocol for STARKs
+winter-stark = "0.8"      # Core STARK implementation
 
-
-# Additional Cryptographic Libraries
+# Advanced Cryptographic Libraries
+arkworks = { version = "0.4", features = ["std"] }  # Advanced cryptographic primitives
+bellman = "0.7"           # Zero-knowledge proof systems
 merlin = "3.0"            # Transcript for zero-knowledge proofs
+poseidon-hash = "0.1"     # Poseidon hash function for STARKs

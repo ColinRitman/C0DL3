@@ -11,7 +11,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::task;
 
-use crate::privacy::user_privacy::PrivateTransaction;
+use crate::privacy::{
+    user_privacy::PrivateTransaction,
+    production_stark_proofs::ProductionStarkProofSystem,
+    advanced_privacy_features::AdvancedPrivacyFeatures,
+};
 
 /// Performance-optimized privacy system
 pub struct OptimizedPrivacySystem {
@@ -398,6 +402,7 @@ impl OptimizedPrivacySystem {
         
         // Remove least recently used proofs if cache is full
         if cache.proofs.len() >= cache.max_cache_size {
+
             // Collect keys and access counts
             let mut proof_info: Vec<_> = cache.proofs.iter().map(|(key, proof)| (key.clone(), proof.access_count)).collect();
             proof_info.sort_by_key(|(_, count)| *count);

@@ -6,11 +6,14 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::privacy::user_privacy::PrivateTransaction;
+use crate::privacy::{
+    user_privacy::PrivateTransaction,
+    boojum_stark_proofs::BoojumStarkProofSystem,
+};
 
 /// Cross-chain privacy coordinator
 pub struct CrossChainPrivacyCoordinator {
@@ -287,7 +290,7 @@ impl CrossChainPrivacyCoordinator {
         source_tx: PrivateTransaction,
         destination_chain: &str,
         _destination_address: &str,
-    ) -> Result<CrossChainPrivacyProof> {
+        ) -> Result<CrossChainPrivacyProof> {
         // Validate destination chain
         if !self.supported_chains.contains_key(destination_chain) {
             return Err(anyhow!("Unsupported destination chain: {}", destination_chain));

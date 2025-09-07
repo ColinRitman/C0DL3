@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::privacy::{
+    user_privacy::PrivateTransaction,
+    production_stark_proofs::ProductionStarkProofSystem,
+    advanced_privacy_features::AdvancedPrivacyFeatures,
+    performance_optimization::OptimizedPrivacySystem,
+};
 
 /// Security audit preparation system
 pub struct SecurityAuditPrep {

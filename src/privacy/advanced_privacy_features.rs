@@ -6,7 +6,8 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
-use std::collections::{HashMap, VecDeque};
+use rand::{RngCore, Rng};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -364,12 +365,13 @@ impl AdvancedPrivacyFeatures {
             }
         }
         
+
         let expired_count = expired_keys.len();
         for key in expired_keys {
             manager.anonymity_sets.remove(&key);
         }
         
-        Ok(expired_count)
+        Ok(expired_keys.len())
     }
     
     // Private helper methods

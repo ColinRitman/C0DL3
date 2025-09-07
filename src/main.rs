@@ -1111,12 +1111,13 @@ impl C0DL3ZkSyncNode {
             .route("/hyperchain/batches", get(get_l1_batches))
             // .route("/merge-mining/stats", get(get_merge_mining_stats)) // Commented out for now
             .route("/merge-mining/fuego-blocks", get(get_fuego_blocks))
-            .route("/merge-mining/fuego-blocks/{height}", get(get_fuego_block))
+            .route("/merge-mining/fuego-blocks/:height", get(get_fuego_block))
+
             // Privacy endpoints for user-level privacy
             .route("/privacy/status", get(get_privacy_status))
             .route("/privacy/create_transaction", post(create_private_transaction))
             .route("/privacy/submit_transaction", post(submit_private_transaction))
-            .route("/privacy/get_transaction/{hash}", get(get_private_transaction))
+            .route("/privacy/get_transaction/:hash", get(get_private_transaction))
             .route("/privacy/verify_transaction", post(verify_private_transaction))
             .route("/privacy/decrypt_transaction", post(decrypt_transaction_details))
             .layer(ServiceBuilder::new().layer(cors))

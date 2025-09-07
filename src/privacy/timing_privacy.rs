@@ -33,6 +33,7 @@ pub struct TimestampMetadata {
 }
 
 /// Timing privacy system using ChaCha20Poly1305
+
 #[derive(Clone)]
 pub struct TimingPrivacy {
     /// Encryption key (32 bytes)

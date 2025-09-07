@@ -209,6 +209,7 @@ impl AddressEncryption {
         
         while key_stream.len() < length {
             let mut round_hasher = Sha256::new();
+
             round_hasher.update(hasher.clone().finalize());
             round_hasher.update(counter.to_le_bytes());
             

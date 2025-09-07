@@ -4,10 +4,13 @@
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
+use hex;
 
 /// STARK proof system for user-level privacy
 /// Note: This is a simplified implementation for demonstration
 /// Production implementation would use zkSync Boojum STARKs
+
 #[derive(Clone)]
 pub struct StarkProofSystem {
     /// Proof generation parameters
