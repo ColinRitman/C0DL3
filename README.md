@@ -4,7 +4,7 @@ C0DL (**C**ertificates **O**f **D**eposit **L**edger) is the modular zk-privacy 
 
 C0DL3 on [Arbitrum](https://github.com/colinritman/C0DL3) branch
 
-C0DL3 on [zkSync](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3-implementation) branch
+C0DL3 on [zkSync](https://github.com/ColinRitman/C0DL3/tree/feature/zkc0dl3-implementation) branch
 
 Rollup host comparison [here](https://github.com/ColinRitman/C0DL3/blob/zksync/MODEL_COMPARISON.md)
 
