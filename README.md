@@ -2,12 +2,12 @@
 
 ## Overview
 
-zkC0DL3 is a complete implementation of a zkSync hyperchain node that integrated with the C0DL3 protocol, COLD banking suite, treasury, COLDAO, & community assets ecosystem. This implementation provides:
+zkC0DL3 is a complete implementation of a zkSync Hyperchain integrated with the C0DL3 protocol, COLD banking suite, treasury, COLDAO, & community assets ecosystem. This implementation provides:
 
 - **P2P Networking**: Full libp2p-based peer-to-peer networking
 - **RPC Server**: RESTful API for interacting with the node
 - **zkSync Integration**: L1/L2 bridge monitoring and batch processing
-- **Mining**: C0DL3 block mining with ZK proof generation
+- **Merge Mining**: C0DL3 block mining with ZK proof generation using aux_hash of Fuego's CNUPX/2
 - **Hyperchain Support**: Complete zkSync hyperchain functionality
 
 ## Features
@@ -50,8 +50,8 @@ zkC0DL3 is a complete implementation of a zkSync hyperchain node that integrated
 │ - Batch Commits │    │ - RPC Server    │    │ - State Updates │
 │ - Validators    │    │ - Mining        │    │ - Transactions  │
 └─────────────────┘    │ - ZK Proofs     │    └─────────────────┘
-                        │ - L1 Monitoring │
-                        └─────────────────┘
+                       │ - L1 Monitoring │
+                       └─────────────────┘
 ```
 
 ## Data Structures
