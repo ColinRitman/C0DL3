@@ -1,4 +1,5 @@
-# zkC0DL3 - zkSync Hyperchain Implementation
+# zkC0DL3 
+## zkSync Hyperchain Implementation
 
 ## Overview
 
