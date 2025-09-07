@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 // This is a simplified version of the zkC0DL3 implementation
 // that demonstrates the core functionality without external dependencies
@@ -498,7 +498,7 @@ fn main() {
         priority_ops_hash: "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba".to_string(),
     };
     
-    node.submit_l1_batch(test_batch).unwrap();
+    node.submit_l1_batch(test_batch.clone()).unwrap();
     
     let hyperchain_proof = node.generate_hyperchain_proof(&test_batch).unwrap();
     println!("Generated hyperchain ZK proof type: {}", hyperchain_proof.proof_type);

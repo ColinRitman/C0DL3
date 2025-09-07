@@ -289,8 +289,8 @@ impl CrossChainPrivacyCoordinator {
         &self,
         source_tx: PrivateTransaction,
         destination_chain: &str,
-        destination_address: &str,
-    ) -> Result<CrossChainPrivacyProof> {
+        _destination_address: &str,
+        ) -> Result<CrossChainPrivacyProof> {
         // Validate destination chain
         if !self.supported_chains.contains_key(destination_chain) {
             return Err(anyhow!("Unsupported destination chain: {}", destination_chain));

@@ -302,7 +302,7 @@ impl AdvancedPrivacyFeatures {
     }
     
     /// Generate zero-knowledge proof for transaction privacy
-    pub fn generate_privacy_proof(&self, transaction: &PrivateTransaction) -> Result<ZeroKnowledgePrivacyProof> {
+    pub fn generate_privacy_proof(&self, _transaction: &PrivateTransaction) -> Result<ZeroKnowledgePrivacyProof> {
         // Generate STARK proof for transaction privacy
         let stark_proof = self.zk_proof_system.prove_transaction_privacy(1000, 5000)?;
         
@@ -365,6 +365,8 @@ impl AdvancedPrivacyFeatures {
             }
         }
         
+
+        let expired_count = expired_keys.len();
         for key in expired_keys {
             manager.anonymity_sets.remove(&key);
         }

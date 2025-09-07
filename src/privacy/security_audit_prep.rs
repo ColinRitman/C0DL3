@@ -2,7 +2,7 @@
 // Implements comprehensive security documentation and audit preparation
 // Follows elite-level security standards for professional security audits
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};

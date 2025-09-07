@@ -4,6 +4,7 @@
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -401,12 +402,16 @@ impl OptimizedPrivacySystem {
         
         // Remove least recently used proofs if cache is full
         if cache.proofs.len() >= cache.max_cache_size {
-            let mut proofs: Vec<_> = cache.proofs.iter().collect();
-            proofs.sort_by_key(|(_, proof)| proof.access_count);
+
+            // Collect keys and access counts
+            let mut proof_info: Vec<_> = cache.proofs.iter().map(|(key, proof)| (key.clone(), proof.access_count)).collect();
+            proof_info.sort_by_key(|(_, count)| *count);
             
-            let to_remove = proofs.len() - cache.max_cache_size + 100; // Remove 100 extra
-            for (key, _) in proofs.iter().take(to_remove) {
-                cache.proofs.remove(*key);
+            let to_remove = proof_info.len() - cache.max_cache_size + 100; // Remove 100 extra
+            let keys_to_remove: Vec<_> = proof_info.iter().take(to_remove).map(|(key, _)| key.clone()).collect();
+            
+            for key in keys_to_remove {
+                cache.proofs.remove(&key);
             }
         }
         
@@ -479,7 +484,7 @@ impl OptimizedPrivacySystem {
     
     async fn process_single_transaction(
         transaction: PrivateTransaction,
-        cache: Arc<RwLock<ProofCache>>,
+        _cache: Arc<RwLock<ProofCache>>,
     ) -> Result<Vec<u8>> {
         // Generate proof for single transaction
         let mut proof_data = Vec::new();
@@ -623,7 +628,7 @@ impl PerformanceBenchmark {
         
         let avg_time = times.iter().sum::<f64>() / times.len() as f64;
         let min_time = times.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let max_time = times.iter().fold(0.0, |a, &b| a.max(b));
+        let max_time = times.iter().fold(0.0_f64, |a, &b| a.max(b));
         
         // Calculate standard deviation
         let variance = times.iter()

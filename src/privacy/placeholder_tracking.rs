@@ -2,9 +2,10 @@
 // Comprehensive tracking of all simplified/placeholder values in the privacy system
 // Provides detailed documentation of what needs production integration
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use sha2::{Sha256, Digest};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -399,9 +400,9 @@ impl PlaceholderTrackingSystem {
         Ok(PlaceholderReport {
             report_id: self.generate_report_id()?,
             generated_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            placeholders,
-            simplified_implementations: simplified_impls,
-            production_requirements: requirements,
+            placeholders: placeholders.clone(),
+            simplified_implementations: simplified_impls.clone(),
+            production_requirements: requirements.clone(),
             integration_status,
             summary: self.generate_report_summary(&placeholders, &simplified_impls, &requirements)?,
         })
@@ -420,9 +421,9 @@ impl PlaceholderTrackingSystem {
     /// Update simplified implementation status
     pub fn update_simplified_implementation_status(&self, impl_id: &str, status: SimplifiedImplementationStatus) -> Result<()> {
         let mut implementations = self.simplified_implementations.lock().unwrap();
-        if let Some(impl) = implementations.get_mut(impl_id) {
-            impl.status = status;
-            impl.updated_at = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        if let Some(implementation) = implementations.get_mut(impl_id) {
+            implementation.status = status;
+            implementation.updated_at = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         }
         Ok(())
     }

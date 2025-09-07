@@ -10,6 +10,8 @@ use hex;
 /// STARK proof system for user-level privacy
 /// Note: This is a simplified implementation for demonstration
 /// Production implementation would use zkSync Boojum STARKs
+
+#[derive(Clone)]
 pub struct StarkProofSystem {
     /// Proof generation parameters
     proof_params: ProofParameters,
@@ -45,7 +47,7 @@ impl StarkProofSystem {
         Ok(Self {
             proof_params: ProofParameters {
                 security_level: 128, // 128-bit security level
-                field_size: 2u64.pow(64) - 1, // Large prime field
+                field_size: u64::MAX - 1, // Large prime field (avoid overflow)
                 rounds: 10, // Number of proof rounds
             },
         })

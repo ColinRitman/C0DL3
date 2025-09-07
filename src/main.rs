@@ -15,7 +15,7 @@ mod privacy;
 // mod enhanced_cli;
 // mod simple_visual_cli;
 
-use fuego_daemon::{FuegoDaemon, FuegoDaemonConfig};
+use fuego_daemon::FuegoDaemon;
 // use unified_cli::{UnifiedCliDaemon, UnifiedCliConfig};
 // use cli_interface::CliInterface;
 // use enhanced_cli::EnhancedCliApp;
@@ -23,7 +23,7 @@ use fuego_daemon::{FuegoDaemon, FuegoDaemonConfig};
 
 use serde_json::json;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::Json,
     routing::{get, post},
@@ -35,11 +35,59 @@ use tower_http::cors::{Any, CorsLayer};
 use sha2::{Sha256, Digest};
 use hex;
 use libp2p::{
-    identity, noise, tcp, yamux, Multiaddr, NetworkBehaviour, PeerId, Swarm, SwarmBuilder,
+    identity, PeerId,
     Transport,
 };
 use futures::StreamExt;
-use uuid::Uuid;
+
+// Standalone functions for Fuego mining
+async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
+    // Simulate Fuego block mining with CN-UPX/2 algorithm
+    let height = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u64;
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    
+    // Generate CN-UPX/2 hash
+    let input_data = format!("fuego_block_{}_{}", height, timestamp);
+    let cn_upx2_hash = calculate_cn_upx2_hash(input_data.as_bytes())?;
+    
+    // Create AuxPoW for merge-mining
+    let aux_pow = AuxPow {
+        coinbase_tx: format!("0x{:064x}", height),
+        coinbase_branch: vec![format!("0x{:064x}", height * 2)],
+        coinbase_index: 0,
+        block_hash: format!("0x{:064x}", cn_upx2_hash[0] as u64),
+        parent_block_hash: format!("0x{:064x}", height - 1),
+        parent_merkle_branch: vec![format!("0x{:064x}", height * 3)],
+        parent_merkle_index: 0,
+        parent_block_header: format!("0x{:064x}", height - 1),
+    };
+    
+    let fuego_block = FuegoBlock {
+        height,
+        hash: format!("0x{:064x}", cn_upx2_hash[0] as u64),
+        previous_hash: format!("0x{:064x}", height - 1),
+        timestamp,
+        nonce: height,
+        difficulty: 1000, // Default difficulty
+        merkle_root: format!("0x{:064x}", cn_upx2_hash[1] as u64),
+        aux_pow: Some(aux_pow),
+    };
+    
+    Ok(fuego_block)
+}
+
+fn calculate_cn_upx2_hash(input: &[u8]) -> Result<[u8; 32]> {
+    // Simplified CN-UPX/2 hash simulation
+    // In a real implementation, this would use the actual CN-UPX/2 algorithm
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    hasher.update(b"CN-UPX/2");
+    
+    let hash = hasher.finalize();
+    let mut result = [0u8; 32];
+    result.copy_from_slice(&hash);
+    Ok(result)
+}
 
 // Merge-mining structures for Fuego L1 integration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +153,34 @@ pub struct HyperchainConfig {
     pub bridge_address: String,
     pub validator_address: String,
     pub l1_contract_address: String,
+}
+
+// P2P Network Behaviour - Simplified for now
+// use libp2p::swarm::NetworkBehaviour;
+
+#[derive(libp2p::swarm::NetworkBehaviour)]
+#[behaviour(out_event = "C0DL3Event")]
+pub struct C0DL3Behaviour {
+    pub floodsub: libp2p::floodsub::Behaviour,
+    pub kademlia: libp2p::kad::Behaviour<libp2p::kad::store::MemoryStore>,
+}
+
+#[derive(Debug)]
+pub enum C0DL3Event {
+    Floodsub(libp2p::floodsub::Event),
+    Kademlia(libp2p::kad::Event),
+}
+
+impl From<libp2p::floodsub::Event> for C0DL3Event {
+    fn from(event: libp2p::floodsub::Event) -> Self {
+        C0DL3Event::Floodsub(event)
+    }
+}
+
+impl From<libp2p::kad::Event> for C0DL3Event {
+    fn from(event: libp2p::kad::Event) -> Self {
+        C0DL3Event::Kademlia(event)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,6 +377,7 @@ impl Default for MergeMiningConfig {
 
 // Main node implementation
 
+#[derive(Clone)]
 pub struct C0DL3ZkSyncNode {
     config: NodeConfig,
     running: bool,
@@ -308,7 +385,7 @@ pub struct C0DL3ZkSyncNode {
     pending_transactions: Arc<Mutex<HashMap<String, Transaction>>>,
     mining_rewards: Arc<Mutex<MiningRewards>>,
     start_time: Instant,
-    p2p_swarm: Option<Swarm<C0DL3Behaviour>>,
+    // p2p_swarm: Option<libp2p::swarm::Swarm<C0DL3Behaviour>>, // Commented out - cannot be cloned
     l1_batches: Arc<Mutex<HashMap<u64, L1Batch>>>,
     hyperchain_config: HyperchainConfig,
     fuego_blocks: Arc<Mutex<HashMap<u64, FuegoBlock>>>,
@@ -365,7 +442,7 @@ impl C0DL3ZkSyncNode {
                 total_rewards: 0,
             })),
             start_time: Instant::now(),
-            p2p_swarm: None,
+            // p2p_swarm: None, // Commented out - cannot be cloned
             l1_batches: Arc::new(Mutex::new(HashMap::new())),
             hyperchain_config,
             fuego_blocks: Arc::new(Mutex::new(HashMap::new())),
@@ -776,42 +853,238 @@ impl C0DL3ZkSyncNode {
         Ok(stats)
     }
 
-    // P2P Network initialization
+    // P2P Network initialization with libp2p 0.56.0 API
     async fn init_p2p_network(&mut self) -> Result<()> {
-        info!("Initializing P2P network...");
+        info!("Initializing P2P network with libp2p 0.56.0 and TokioTcpConfig...");
         
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
         info!("Local peer ID: {}", local_peer_id);
 
-        let transport = tcp::async_io::Transport::new(tcp::Config::default().nodelay(true))
-            .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(noise::Config::new(&local_key)?)
-            .multiplex(yamux::Config::default())
-            .boxed();
-
-        let mut floodsub = libp2p::floodsub::Floodsub::new(local_peer_id);
+        // Create Floodsub for pub/sub messaging
+        let mut floodsub = libp2p::floodsub::Behaviour::new(local_peer_id);
         floodsub.subscribe(libp2p::floodsub::Topic::new("c0dl3-blocks"));
         floodsub.subscribe(libp2p::floodsub::Topic::new("c0dl3-transactions"));
+        floodsub.subscribe(libp2p::floodsub::Topic::new("c0dl3-privacy-proofs"));
 
-        let store = libp2p::kademlia::record::store::MemoryStore::new(local_peer_id);
-        let mut kademlia = libp2p::kademlia::Kademlia::new(local_peer_id, store);
+        // Create Kademlia for DHT functionality
+        let store = libp2p::kad::store::MemoryStore::new(local_peer_id);
+        let kademlia = libp2p::kad::Behaviour::new(local_peer_id, store);
 
+        // Create the network behaviour
         let behaviour = C0DL3Behaviour {
             floodsub,
             kademlia,
         };
 
-        let mut swarm = SwarmBuilder::with_async_std_executor(transport, behaviour, local_peer_id)
+        // Create transport using Tokio TCP transport (correct API for libp2p 0.56.0)
+        let transport = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default())
+            .upgrade(libp2p::core::upgrade::Version::V1)
+            .authenticate(libp2p::noise::Config::new(&local_key)?)
+            .multiplex(libp2p::yamux::Config::default())
+            .boxed();
+
+        // Build the swarm using SwarmBuilder with correct pattern
+        let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
+            .with_tokio()
+            .with_other_transport(|_| Ok(transport))?
+            .with_behaviour(|_| Ok(behaviour))?
             .build();
 
         // Listen on all interfaces
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", self.config.network.p2p_port);
         swarm.listen_on(listen_addr.parse()?)?;
 
-        self.p2p_swarm = Some(swarm);
-        info!("P2P network initialized on port {}", self.config.network.p2p_port);
+        info!("P2P network initialized successfully on port {}", self.config.network.p2p_port);
+        info!("Listening on: {}", listen_addr);
+        info!("Transport provider: TokioTcpConfig (libp2p 0.56.0)");
+        
+        // Start P2P event loop
+        self.start_p2p_event_loop(swarm).await?;
+        
         Ok(())
+    }
+
+    // P2P event loop for handling network events
+    async fn start_p2p_event_loop(&mut self, mut swarm: libp2p::Swarm<C0DL3Behaviour>) -> Result<()> {
+        info!("Starting P2P event loop with full functionality...");
+        
+        // Bootstrap Kademlia DHT
+        swarm.behaviour_mut().kademlia.bootstrap()?;
+        info!("Kademlia DHT bootstrap initiated");
+        
+        loop {
+            match swarm.select_next_some().await {
+                // Connection events
+                libp2p::swarm::SwarmEvent::NewListenAddr { address, .. } => {
+                    info!("New listen address: {}", address);
+                }
+                libp2p::swarm::SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
+                    info!("Connection established with peer: {} via {}", peer_id, endpoint.get_remote_address());
+                    
+                    // Add peer to Kademlia routing table
+                    swarm.behaviour_mut().kademlia.add_address(&peer_id, endpoint.get_remote_address().clone());
+                }
+                libp2p::swarm::SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                    info!("Connection closed with peer: {}", peer_id);
+                }
+                
+                // Behaviour events
+                libp2p::swarm::SwarmEvent::Behaviour(event) => {
+                    match event {
+                        C0DL3Event::Floodsub(event) => {
+                            match event {
+                                libp2p::floodsub::Event::Message(message) => {
+                                    let topics = &message.topics;
+                                    let data = String::from_utf8_lossy(&message.data);
+                                    info!("Received floodsub message on topics '{:?}' from {}: {}", 
+                                          topics, message.source, data);
+                                    
+                                    // Handle different message types
+                                    for topic in topics {
+                                        let topic_str = format!("{:?}", topic);
+                                        match topic_str.as_str() {
+                                            "c0dl3-blocks" => {
+                                                info!("Processing new block message: {}", data);
+                                            }
+                                            "c0dl3-transactions" => {
+                                                info!("Processing new transaction message: {}", data);
+                                            }
+                                            "c0dl3-privacy-proofs" => {
+                                                info!("Processing new privacy proof message: {}", data);
+                                            }
+                                            _ => {
+                                                info!("Received message on unknown topic: {}", topic_str);
+                                            }
+                                        }
+                                    }
+                                }
+                                libp2p::floodsub::Event::Subscribed { topic, .. } => {
+                                    info!("Subscribed to topic: {:?}", topic);
+                                }
+                                libp2p::floodsub::Event::Unsubscribed { topic, peer_id: _ } => {
+                                    info!("Unsubscribed from topic: {:?}", topic);
+                                }
+                            }
+                        }
+                        C0DL3Event::Kademlia(event) => {
+                            match event {
+                                libp2p::kad::Event::OutboundQueryProgressed { result, .. } => {
+                                    match result {
+                                        libp2p::kad::QueryResult::Bootstrap(result) => {
+                                            match result {
+                                                Ok(ok) => {
+                                                    info!("Kademlia bootstrap completed: {} remaining peers", ok.num_remaining);
+                                                    if ok.num_remaining == 0 {
+                                                        info!("DHT bootstrap fully completed!");
+                                                    }
+                                                }
+                                                Err(e) => warn!("Kademlia bootstrap failed: {}", e),
+                                            }
+                                        }
+                                        libp2p::kad::QueryResult::GetRecord(result) => {
+                                            match result {
+                                                Ok(record) => {
+                                                    info!("Retrieved record from DHT");
+                                                }
+                                                Err(e) => {
+                                                    debug!("Failed to retrieve record from DHT: {}", e);
+                                                }
+                                            }
+                                        }
+                                        libp2p::kad::QueryResult::PutRecord(result) => {
+                                            match result {
+                                                Ok(_) => info!("Successfully stored record in DHT"),
+                                                Err(e) => warn!("Failed to store record in DHT: {}", e),
+                                            }
+                                        }
+                                        libp2p::kad::QueryResult::StartProviding(result) => {
+                                            match result {
+                                                Ok(_) => info!("Started providing record in DHT"),
+                                                Err(e) => warn!("Failed to start providing record: {}", e),
+                                            }
+                                        }
+                                        libp2p::kad::QueryResult::GetProviders(result) => {
+                                            match result {
+                                                Ok(providers) => {
+                                                    info!("Found providers for record");
+                                                }
+                                                Err(e) => {
+                                                    debug!("No providers found for record: {}", e);
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                libp2p::kad::Event::RoutingUpdated { peer, .. } => {
+                                    info!("Discovered new peer in routing table: {}", peer);
+                                }
+                                libp2p::kad::Event::RoutablePeer { peer, .. } => {
+                                    info!("Peer {} is now routable", peer);
+                                }
+                                libp2p::kad::Event::InboundRequest { .. } => {
+                                    debug!("Received inbound Kademlia request");
+                                }
+                                libp2p::kad::Event::UnroutablePeer { peer } => {
+                                    debug!("Peer {} is unroutable", peer);
+                                }
+                                libp2p::kad::Event::PendingRoutablePeer { peer, address } => {
+                                    debug!("Peer {} pending routable at {}", peer, address);
+                                }
+                                libp2p::kad::Event::ModeChanged { new_mode } => {
+                                    info!("Kademlia mode changed to {:?}", new_mode);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Dialing events
+                libp2p::swarm::SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                    warn!("Failed to connect to peer {}: {}", peer_id.map_or("unknown".to_string(), |p| p.to_string()), error);
+                }
+                
+                // Other events
+                _ => {}
+            }
+        }
+    }
+
+    // P2P Communication Methods
+    pub async fn broadcast_block(&self, block_data: &str) -> Result<()> {
+        info!("Broadcasting block data via P2P: {}", block_data);
+        // This would be called from the swarm to publish to floodsub
+        // For now, we'll log the intent
+        Ok(())
+    }
+
+    pub async fn broadcast_transaction(&self, tx_data: &str) -> Result<()> {
+        info!("Broadcasting transaction data via P2P: {}", tx_data);
+        // This would be called from the swarm to publish to floodsub
+        // For now, we'll log the intent
+        Ok(())
+    }
+
+    pub async fn broadcast_privacy_proof(&self, proof_data: &str) -> Result<()> {
+        info!("Broadcasting privacy proof data via P2P: {}", proof_data);
+        // This would be called from the swarm to publish to floodsub
+        // For now, we'll log the intent
+        Ok(())
+    }
+
+    pub async fn store_in_dht(&self, key: &str, value: &str) -> Result<()> {
+        info!("Storing key-value pair in DHT: {} -> {}", key, value);
+        // This would be called from the swarm to store in Kademlia DHT
+        // For now, we'll log the intent
+        Ok(())
+    }
+
+    pub async fn retrieve_from_dht(&self, key: &str) -> Result<Option<String>> {
+        info!("Retrieving value from DHT for key: {}", key);
+        // This would be called from the swarm to retrieve from Kademlia DHT
+        // For now, we'll return None
+        Ok(None)
     }
 
     // RPC Server
@@ -831,14 +1104,15 @@ impl C0DL3ZkSyncNode {
             .route("/", get(root))
             .route("/health", get(health))
             .route("/stats", get(get_stats))
-            .route("/blocks/:height", get(get_block))
-            .route("/transactions/:hash", get(get_transaction))
+            .route("/blocks/{height}", get(get_block))
+            .route("/transactions/{hash}", get(get_transaction))
             .route("/submit_transaction", post(submit_transaction))
             .route("/hyperchain/info", get(get_hyperchain_info))
             .route("/hyperchain/batches", get(get_l1_batches))
-            .route("/merge-mining/stats", get(get_merge_mining_stats))
+            // .route("/merge-mining/stats", get(get_merge_mining_stats)) // Commented out for now
             .route("/merge-mining/fuego-blocks", get(get_fuego_blocks))
             .route("/merge-mining/fuego-blocks/:height", get(get_fuego_block))
+
             // Privacy endpoints for user-level privacy
             .route("/privacy/status", get(get_privacy_status))
             .route("/privacy/create_transaction", post(create_private_transaction))
@@ -875,7 +1149,7 @@ impl C0DL3ZkSyncNode {
                 interval.tick().await;
                 
                 // Simulate L1 batch monitoring
-                if let Ok(mut batches_guard) = l1_batches.lock() {
+                let batch_number = if let Ok(mut batches_guard) = l1_batches.lock() {
                     let batch_number = batches_guard.len() as u64 + 1;
                     
                     let batch = L1Batch {
@@ -889,7 +1163,10 @@ impl C0DL3ZkSyncNode {
                     
                     batches_guard.insert(batch_number, batch);
                     info!("Processed L1 batch: {}", batch_number);
-                }
+                    batch_number
+                } else {
+                    0
+                };
                 
                 // Update connected peers count
                 if let Ok(mut state_guard) = state.lock() {
@@ -975,7 +1252,7 @@ impl C0DL3ZkSyncNode {
                 }
                 
                 // Attempt to mine Fuego block
-                if let Ok(fuego_block) = Self::mine_fuego_block(&config).await {
+                if let Ok(fuego_block) = mine_fuego_block(&config).await {
                     info!("Mined Fuego block! Height: {}, Hash: {}", fuego_block.height, fuego_block.hash);
                     
                     // Store Fuego block
@@ -1010,54 +1287,6 @@ impl C0DL3ZkSyncNode {
         Ok(())
     }
 
-    async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
-        // Simulate Fuego block mining with CN-UPX/2 algorithm
-        let height = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u64;
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        
-        // Generate CN-UPX/2 hash
-        let input_data = format!("fuego_block_{}_{}", height, timestamp);
-        let cn_upx2_hash = Self::calculate_cn_upx2_hash(input_data.as_bytes())?;
-        
-        // Create AuxPoW for merge-mining
-        let aux_pow = AuxPow {
-            coinbase_tx: format!("0x{:064x}", height),
-            coinbase_branch: vec![format!("0x{:064x}", height * 2)],
-            coinbase_index: 0,
-            block_hash: format!("0x{:064x}", cn_upx2_hash[0] as u64),
-            parent_block_hash: format!("0x{:064x}", height - 1),
-            parent_merkle_branch: vec![format!("0x{:064x}", height * 3)],
-            parent_merkle_index: 0,
-            parent_block_header: format!("0x{:064x}", height * 4),
-        };
-        
-        let fuego_block = FuegoBlock {
-            height,
-            hash: format!("0x{:064x}", cn_upx2_hash[0] as u64),
-            previous_hash: format!("0x{:064x}", height - 1),
-            timestamp,
-            nonce: height % 1000000,
-            difficulty: config.merge_mining.cn_upx2_difficulty,
-            merkle_root: format!("0x{:064x}", cn_upx2_hash[1] as u64),
-            aux_pow: Some(aux_pow),
-        };
-        
-        Ok(fuego_block)
-    }
-
-    fn calculate_cn_upx2_hash(input: &[u8]) -> Result<[u8; 32]> {
-        // Simplified CN-UPX/2 hash simulation
-        // In a real implementation, this would use the actual CN-UPX/2 algorithm
-        let mut hasher = Sha256::new();
-        hasher.update(input);
-        hasher.update(b"CN-UPX/2");
-        hasher.update(b"C0DL3-MERGE-MINING");
-        
-        let result = hasher.finalize();
-        let mut output = [0u8; 32];
-        output.copy_from_slice(&result);
-        Ok(output)
-    }
 
     pub async fn get_fuego_block(&self, height: u64) -> Option<FuegoBlock> {
         let blocks_guard = self.fuego_blocks.lock().unwrap();
@@ -1560,7 +1789,7 @@ async fn test_node_functionality(node: &C0DL3ZkSyncNode) -> Result<()> {
         priority_ops_hash: "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba".to_string(),
     };
     
-    node.submit_l1_batch(test_batch).await?;
+    node.submit_l1_batch(test_batch.clone()).await?;
     
     let hyperchain_proof = node.generate_hyperchain_proof(&test_batch).await?;
     info!("Generated hyperchain ZK proof type: {}", hyperchain_proof.proof_type);
@@ -1668,7 +1897,7 @@ async fn start_unified_daemon(config: NodeConfig) -> Result<()> {
     let c0dl3_state = shared_state.clone();
     let c0dl3_handle = tokio::spawn(async move {
         info!("🔗 Starting C0DL3 zkSync node...");
-        let mut node = C0DL3ZkSyncNode::new(c0dl3_config).unwrap();
+        let mut node = C0DL3ZkSyncNode::new(c0dl3_config);
         node.start().await.unwrap();
     });
     

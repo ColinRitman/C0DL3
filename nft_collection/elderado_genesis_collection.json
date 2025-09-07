@@ -1,0 +1,459 @@
+{
+  "collection": {
+    "name": "𝝣lderado Genesis Collection",
+    "description": "The inaugural NFT collection celebrating the genesis of zkC0DL3's 𝝣lderado validators. These 21 unique NFTs represent the founding validators who will secure and validate the zkSync hyperchain implementation.",
+    "symbol": "ELDERADO",
+    "total_supply": 21,
+    "genesis_block": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "contract_address": "0x0000000000000000000000000000000000000000",
+    "creator": "zkC0DL3 Foundation",
+    "royalty_percentage": 5.0,
+    "mint_price": "0.1 ETH",
+    "staking_amount": "80000000000 HEAT tokens",
+    "transfer_restriction": "NFTs can only be sold for the staking amount",
+    "mint_date": "2024-01-01T00:00:00Z",
+    "blockchain": "zkC0DL3 Hyperchain",
+    "standard": "ERC-721",
+    "image_base_uri": "https://ipfs.io/ipfs/QmElderadoGenesisCollection/",
+    "metadata_base_uri": "https://ipfs.io/ipfs/QmElderadoGenesisMetadata/"
+  },
+  "nfts": [
+    {
+      "token_id": 1,
+      "name": "𝝣lderado #001",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_001.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:01Z"
+    },
+    {
+      "token_id": 2,
+      "name": "𝝣lderado #002",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_002.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:02Z"
+    },
+    {
+      "token_id": 3,
+      "name": "𝝣lderado #003",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_003.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:03Z"
+    },
+    {
+      "token_id": 4,
+      "name": "𝝣lderado #004",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_004.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:04Z"
+    },
+    {
+      "token_id": 5,
+      "name": "𝝣lderado #005",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_005.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:05Z"
+    },
+    {
+      "token_id": 6,
+      "name": "𝝣lderado #006",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_006.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:06Z"
+    },
+    {
+      "token_id": 7,
+      "name": "𝝣lderado #007",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_007.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:07Z"
+    },
+    {
+      "token_id": 8,
+      "name": "𝝣lderado #008",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_008.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:08Z"
+    },
+    {
+      "token_id": 9,
+      "name": "𝝣lderado #009",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_009.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:09Z"
+    },
+    {
+      "token_id": 10,
+      "name": "𝝣lderado #010",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_010.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:10Z"
+    },
+    {
+      "token_id": 11,
+      "name": "𝝣lderado #011",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_011.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:11Z"
+    },
+    {
+      "token_id": 12,
+      "name": "𝝣lderado #012",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_012.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:12Z"
+    },
+    {
+      "token_id": 13,
+      "name": "𝝣lderado #013",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_013.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:13Z"
+    },
+    {
+      "token_id": 14,
+      "name": "𝝣lderado #014",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_014.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:14Z"
+    },
+    {
+      "token_id": 15,
+      "name": "𝝣lderado #015",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_015.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:15Z"
+    },
+    {
+      "token_id": 16,
+      "name": "𝝣lderado #016",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_016.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:16Z"
+    },
+    {
+      "token_id": 17,
+      "name": "𝝣lderado #017",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_017.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:17Z"
+    },
+    {
+      "token_id": 18,
+      "name": "𝝣lderado #018",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_018.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:18Z"
+    },
+    {
+      "token_id": 19,
+      "name": "𝝣lderado #019",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_019.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:19Z"
+    },
+    {
+      "token_id": 20,
+      "name": "𝝣lderado #020",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_020.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:20Z"
+    },
+    {
+      "token_id": 21,
+      "name": "𝝣lderado #021",
+      "description": "A 𝝣lderado validator representing the genesis of the zkC0DL3 network. This validator embodies the pioneering spirit and foundational security of the hyperchain.",
+      "image": "elderado_021.png",
+      "attributes": [
+        {"trait_type": "Validator Type", "value": "𝝣lderado Validator"},
+        {"trait_type": "Rarity", "value": "Genesis"},
+        {"trait_type": "Power Level", "value": 100},
+        {"trait_type": "Stake Multiplier", "value": "3.0x"},
+        {"trait_type": "Special Ability", "value": "Genesis Blessing"},
+        {"trait_type": "Background", "value": "Cosmic Gold"},
+        {"trait_type": "Crown", "value": "Diamond Crown"},
+        {"trait_type": "Aura", "value": "Golden Radiance"},
+        {"trait_type": "Eyes", "value": "Starlight"},
+        {"trait_type": "Accessory", "value": "Genesis Orb"}
+      ],
+      "rarity_score": 1000,
+      "mint_timestamp": "2024-01-01T00:00:21Z"
+    }
+  ],
+  "rarity_distribution": {
+    "Genesis": 21
+  },
+  "total_rarity_score": 21000,
+  "average_rarity_score": 1000,
+  "genesis_transaction": {
+    "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "block_number": 0,
+    "gas_used": 21000000,
+    "gas_price": "20000000000",
+    "from": "0x0000000000000000000000000000000000000000",
+    "to": "0x0000000000000000000000000000000000000000",
+    "value": "0",
+    "data": "0x",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "status": "success"
+  }
+}

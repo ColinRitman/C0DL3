@@ -52,7 +52,7 @@ struct BoojumSpecificParams {
 }
 
 /// FRI parameters for Boojum
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FriParameters {
     /// FRI folding factor
     folding_factor: u32,

@@ -1,6 +1,7 @@
 // Privacy module for zkC0DL3
-// Elite-level privacy features implementation with maximum privacy-by-default
-// All transactions are private at maximum level (100) by default
+// All transactions are private by default
+
+use serde::{Deserialize, Serialize};
 
 pub mod mining_privacy;
 pub mod user_privacy;
@@ -16,6 +17,11 @@ pub mod boojum_stark_proofs;
 pub mod cross_chain_privacy;
 pub mod privacy_monitoring;
 pub mod placeholder_tracking;
+pub mod production_boojum_integration;
+pub mod production_cross_chain_privacy;
+pub mod production_privacy_monitoring;
+pub mod production_performance_optimization;
+pub mod production_deployment_prep;
 
 #[cfg(test)]
 mod tests;
@@ -24,10 +30,6 @@ mod tests;
 pub use mining_privacy::{
     MiningPrivacyEngine,
     MiningPrivacyConfig,
-    PrivateMiningReward,
-    AnonymousRewardClaim,
-    PrivacyStats,
-    MergeMiningPrivacyConfig,
 };
 
 // New user-level privacy exports

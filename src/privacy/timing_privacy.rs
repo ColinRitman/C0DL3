@@ -33,6 +33,8 @@ pub struct TimestampMetadata {
 }
 
 /// Timing privacy system using ChaCha20Poly1305
+
+#[derive(Clone)]
 pub struct TimingPrivacy {
     /// Encryption key (32 bytes)
     encryption_key: [u8; 32],
@@ -257,7 +259,7 @@ impl TimingPrivacy {
         
         while key_stream.len() < length {
             let mut round_hasher = Sha256::new();
-            round_hasher.update(hasher.finalize());
+            round_hasher.update(hasher.clone().finalize());
             round_hasher.update(counter.to_le_bytes());
             
             key_stream.extend_from_slice(&round_hasher.finalize());
