@@ -10,6 +10,7 @@ pub mod amount_commitments;
 pub mod address_encryption;
 pub mod timing_privacy;
 pub mod production_stark_proofs;
+pub mod production_stark_core;
 pub mod advanced_privacy_features;
 pub mod performance_optimization;
 pub mod security_audit_prep;
@@ -43,6 +44,17 @@ pub use user_privacy::{
 pub use stark_proofs::StarkProof;
 
 pub use stark_proofs::StarkProofSystem;
+
+// Production STARK exports
+pub use production_stark_core::{
+    ProductionStarkProofSystem,
+    ProductionStarkProof,
+    ProofType,
+    ProofMetadata,
+    C0dl3ConstraintSystem,
+    Constraint,
+    ConstraintType,
+};
 pub use amount_commitments::{
     AmountCommitment,
     RangeProof,
