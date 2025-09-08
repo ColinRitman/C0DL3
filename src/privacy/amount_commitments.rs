@@ -1,4 +1,4 @@
-// Amount Commitment System for User-Level Privacy
+// Amount Commitment System for Transaction Privacy
 // Implements bulletproof-based amount commitments with range proofs
 // Hides transaction amounts while proving they are valid
 

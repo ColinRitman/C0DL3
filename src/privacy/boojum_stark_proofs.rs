@@ -1,5 +1,5 @@
-// Boojum STARK Proof System for User-Level Privacy
-// Implements elite-level STARK proofs using zkSync's Boojum prover
+// Boojum STARK Proof System for User Privacy
+// Implements STARK proofs using zkSync's Boojum prover
 // Production-grade STARK system for maximum privacy and performance
 
 use anyhow::{Result, anyhow};

@@ -1,5 +1,5 @@
 // Performance Optimization for Privacy Features
-// Implements elite-level performance optimizations for production-grade privacy operations
+// Implements user-level performance optimizations for production-grade privacy operations
 // Targets sub-100ms proof generation and verification
 
 use anyhow::{Result, anyhow};

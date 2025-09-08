@@ -1,5 +1,5 @@
 // Cross-Chain Privacy Features for Multi-Blockchain Support
-// Implements elite-level privacy across multiple blockchain networks
+// Implements user-level privacy across multiple blockchain networks
 // Provides seamless privacy protection across different chains
 
 use anyhow::{Result, anyhow};

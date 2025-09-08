@@ -8,6 +8,7 @@ use anyhow::{Result, anyhow};
 use tracing::{info, error, debug, warn};
 
 mod fuego_daemon;
+mod fuego_units;
 mod privacy;
 mod mining;
 // mod unified_cli;
