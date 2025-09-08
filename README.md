@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Production Ready](https://img.shields.io/badge/production-ready-green.svg)](#production-deployment)
 
-**zkC0DL3** is a zkSync Hyperchain rollup with transaction-level privacy using zkSTARK proof systems, and full Fuego L1 compatibility for merge mining operations.
+**zkC0DL3** is a zkSync Hyperchain rollup with zkSTARK transaction privacy and Fuego L1 compatibility for merge mining operations.
 
 ## ✨ **Key Features**
 
