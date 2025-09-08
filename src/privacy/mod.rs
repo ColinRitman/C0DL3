@@ -38,8 +38,9 @@ pub use user_privacy::{
     PrivateTransaction,
     PrivateBlock,
     DecryptedTransaction,
-    StarkProof,
 };
+
+pub use stark_proofs::StarkProof;
 
 pub use stark_proofs::StarkProofSystem;
 pub use amount_commitments::{

@@ -367,11 +367,11 @@ impl AdvancedPrivacyFeatures {
         
 
         let expired_count = expired_keys.len();
-        for key in expired_keys {
-            manager.anonymity_sets.remove(&key);
+        for key in &expired_keys {
+            manager.anonymity_sets.remove(key);
         }
         
-        Ok(expired_keys.len())
+        Ok(expired_count)
     }
     
     // Private helper methods

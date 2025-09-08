@@ -9,6 +9,7 @@ use tracing::{info, error, debug, warn};
 
 mod fuego_daemon;
 mod privacy;
+mod mining;
 // mod unified_cli;
 // mod cli_interface;
 // mod visual_cli;
@@ -29,6 +30,8 @@ use axum::{
     routing::{get, post},
     Router,
 };
+
+use mining::{calculate_cn_upx2_hash, CnUpX2Hash};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -48,7 +51,7 @@ async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
     
     // Generate CN-UPX/2 hash
     let input_data = format!("fuego_block_{}_{}", height, timestamp);
-    let cn_upx2_hash = calculate_cn_upx2_hash(input_data.as_bytes())?;
+    let cn_upx2_hash = calculate_cn_upx2_hash_local(input_data.as_bytes())?;
     
     // Create AuxPoW for merge-mining
     let aux_pow = AuxPow {
@@ -76,17 +79,9 @@ async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
     Ok(fuego_block)
 }
 
-fn calculate_cn_upx2_hash(input: &[u8]) -> Result<[u8; 32]> {
-    // Simplified CN-UPX/2 hash simulation
-    // In a real implementation, this would use the actual CN-UPX/2 algorithm
-    let mut hasher = Sha256::new();
-    hasher.update(input);
-    hasher.update(b"CN-UPX/2");
-    
-    let hash = hasher.finalize();
-    let mut result = [0u8; 32];
-    result.copy_from_slice(&hash);
-    Ok(result)
+fn calculate_cn_upx2_hash_local(input: &[u8]) -> Result<CnUpX2Hash> {
+    // Use real CN-UPX/2 algorithm implementation
+    calculate_cn_upx2_hash(input)
 }
 
 // Merge-mining structures for Fuego L1 integration
@@ -351,7 +346,7 @@ impl Default for MiningConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            target_block_time: 30,
+            target_block_time: 60,
             max_nonce: 1000000000000000000,
             difficulty_adjustment_blocks: 10,
         }
@@ -365,7 +360,7 @@ impl Default for MergeMiningConfig {
             fuego_rpc_url: "http://localhost:8546".to_string(),
             fuego_wallet_address: "0x1111111111111111111111111111111111111111".to_string(),
             aux_pow_tag: "C0DL3-MERGE-MINING".to_string(),
-            merge_mining_interval: 30,
+            merge_mining_interval: 60,
             cn_upx2_difficulty: 1000,
             fuego_block_time: 480,
             fuego_binary_path: "./fuegod".to_string(),
@@ -1109,7 +1104,7 @@ impl C0DL3ZkSyncNode {
             .route("/submit_transaction", post(submit_transaction))
             .route("/hyperchain/info", get(get_hyperchain_info))
             .route("/hyperchain/batches", get(get_l1_batches))
-            // .route("/merge-mining/stats", get(get_merge_mining_stats)) // Commented out for now
+            .route("/merge-mining/stats", get(get_merge_mining_stats))
             .route("/merge-mining/fuego-blocks", get(get_fuego_blocks))
             .route("/merge-mining/fuego-blocks/:height", get(get_fuego_block))
 
@@ -1299,9 +1294,18 @@ impl C0DL3ZkSyncNode {
     }
 
     pub async fn get_merge_mining_stats(&self) -> serde_json::Value {
-        let fuego_blocks = self.fuego_blocks.lock().unwrap();
+        let fuego_blocks_count = {
+            let fuego_blocks = self.fuego_blocks.lock().unwrap();
+            fuego_blocks.len()
+        };
+        
         let active = self.is_merge_mining_active().await;
         let config = &self.config.merge_mining;
+        
+        let latest_fuego_block_height = {
+            let fuego_blocks = self.fuego_blocks.lock().unwrap();
+            fuego_blocks.values().max_by_key(|b| b.height).map(|b| b.height)
+        };
         
         json!({
             "enabled": config.enabled,
@@ -1310,8 +1314,8 @@ impl C0DL3ZkSyncNode {
             "aux_pow_tag": config.aux_pow_tag,
             "cn_upx2_difficulty": config.cn_upx2_difficulty,
             "merge_mining_interval": config.merge_mining_interval,
-            "fuego_blocks_mined": fuego_blocks.len(),
-            "latest_fuego_block": fuego_blocks.values().max_by_key(|b| b.height).map(|b| b.height)
+            "fuego_blocks_mined": fuego_blocks_count,
+            "latest_fuego_block": latest_fuego_block_height
         })
     }
 
@@ -1519,6 +1523,7 @@ async fn get_l1_batches(State(state): State<AppState>) -> Json<serde_json::Value
     }))
 }
 
+#[axum::debug_handler]
 async fn get_merge_mining_stats(State(state): State<AppState>) -> Json<serde_json::Value> {
     let stats = state.node.get_merge_mining_stats().await;
     Json(stats)

@@ -10,7 +10,7 @@ use sha2::{Sha256, Digest};
 use hex;
 
 use crate::privacy::{
-    stark_proofs::StarkProofSystem,
+    stark_proofs::{StarkProofSystem, StarkProof},
     amount_commitments::AmountCommitment,
     address_encryption::{AddressEncryption, EncryptedAddress},
     timing_privacy::{TimingPrivacy, EncryptedTimestamp},
@@ -58,16 +58,6 @@ pub struct PrivateTransaction {
     pub balance_proof: StarkProof,
 }
 
-/// STARK proof structure for user-level privacy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StarkProof {
-    /// Proof data (simplified implementation)
-    pub proof_data: Vec<u8>,
-    /// Public inputs for verification
-    pub public_inputs: Vec<u8>,
-    /// Proof type identifier
-    pub proof_type: String,
-}
 
 /// Private block structure with encrypted transactions
 #[derive(Debug, Clone, Serialize, Deserialize)]

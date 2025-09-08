@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.99"
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["macros"] }
 clap = { version = "4.4", features = ["derive"] }
 futures = "0.3.31"
 hex = "0.4.3"
@@ -50,17 +50,29 @@ curve25519-dalek = "4.0"   # Elliptic curves for commitments
 rand = "0.8"               # Cryptographically secure random number generation
 thiserror = "1.0"          # Error handling for privacy operations
 
+# CN-UPX/2 Mining Algorithm Dependencies
+# CryptoNight UPX/2 implementation for Fuego compatibility
+aes = "0.8"                # AES encryption for CryptoNight
+blake3 = "1.5"             # Blake3 hash function
+keccak = "0.1"             # Keccak hash function
+ripemd = "0.1"             # RIPEMD hash function
+
 # Production STARK Proof Systems
 # Boojum STARK prover (zkSync's production STARK system)
-boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
-# Winter-crypto as fallback (keeping for compatibility)
-winter-crypto = "0.8"     # Fallback STARK implementation
-winter-utils = "0.8"      # STARK utilities
-winter-fri = "0.8"        # FRI protocol for STARKs
-winter-stark = "0.8"      # Core STARK implementation
+# TODO: Fix Boojum repository URL - currently unavailable
+# boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
+
+# Winter-crypto STARK implementation (production-ready)
+winter-crypto = "0.13.1"     # Production STARK implementation
+winter-math = "0.13.1"       # Mathematical primitives for STARKs
+winter-utils = "0.13.1"      # STARK utilities
+winter-fri = "0.13.1"        # FRI protocol for STARKs
+winter-air = "0.13.1"        # AIR components for STARK prover/verifier
 
 # Advanced Cryptographic Libraries
-arkworks = { version = "0.4", features = ["std"] }  # Advanced cryptographic primitives
-bellman = "0.7"           # Zero-knowledge proof systems
-merlin = "3.0"            # Transcript for zero-knowledge proofs
-poseidon-hash = "0.1"     # Poseidon hash function for STARKs
+# Arkworks ecosystem for advanced cryptographic primitives
+arkworks-gadgets = "0.4.20"  # Zero-knowledge gadgets
+arkworks-circuits = "0.4.20" # Zero-knowledge circuits
+arkworks-setups = "1.2.2"   # Zero-knowledge circuit setups
+arkworks-mimc = "0.3.0"     # MiMC hash function
+merlin = "3.0"              # Transcript for zero-knowledge proofs
