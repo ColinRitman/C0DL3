@@ -1,10 +1,10 @@
-# 🚀 zkC0DL3 - Production-Grade zkSync Node
+# 🚀 zkC0DL3 node - zkSync Hyperchain Node
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Production Ready](https://img.shields.io/badge/production-ready-green.svg)](#production-deployment)
 
-**zkC0DL3** is a production-grade zkSync node implementation with advanced privacy features, STARK proof systems, and full Fuego L1 compatibility for dual mining operations.
+**zkC0DL3** is a zkSync Hyperchain rollup with transaction privacy features using zkSTARK proof systems, and full Fuego L1 compatibility for merge mining operations.
 
 ## ✨ **Key Features**
 
@@ -13,12 +13,12 @@
 - **Address encryption** using ChaCha20Poly1305
 - **Timing privacy** with encrypted timestamps
 - **STARK proof generation** for privacy preservation
-- **Cross-chain privacy** coordination
+- **Cross-chain privacy** coordination methods
 
 ### ⛏️ **Mining & Consensus**
-- **CN-UPX/2 Algorithm**: Standard implementation for Fuego compatibility
+- **CN-UPX/2 Algorithm**: Full implementation for Fuego compatibility
 - **60-second block time** for optimal stability
-- **Merge mining** with Fuego L1 every 60 seconds
+- **Merge mining** with Fuego L1 every 60 seconds, 8:1 ratio
 - **Dual mining support** for Fuego miners
 - **Difficulty adjustment** every 10 blocks
 
@@ -29,7 +29,7 @@
 - **Bootstrap Peers**: Configurable peer discovery
 
 ### 🔗 **Cross-Chain Integration**
-- **Fuego L1 Compatibility**: Full dual mining support
+- **Fuego L1 Compatibility**: Full CNUPX/2 merge mining support
 - **Merge Mining**: AuxPoW integration
 - **Bridge Management**: Multi-blockchain support
 - **Unified ZK Proofs**: Cross-chain privacy preservation
