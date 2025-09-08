@@ -8,7 +8,7 @@ C0DL3 on [zkSync](https://github.com/ColinRitman/C0DL3/tree/feature/zkc0dl3-impl
 
 Rollup host comparison [here](https://github.com/ColinRitman/C0DL3/blob/zksync/MODEL_COMPARISON.md)
 
-<sup>launch of C0DL3 dependent upon whichever host chain is more decentralized & provides best path for privacy, ofc.</sup>
+<sup>dependent upon whichever rollup host chain offers greater decentralization & provides best path for privacy, ofc.</sup>
 
 
 
