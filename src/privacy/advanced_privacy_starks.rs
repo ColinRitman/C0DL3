@@ -368,14 +368,14 @@ impl AdvancedPrivacyStarkSystem {
         })
     }
     
-    /// Generate mining privacy proof
-    /// Hides mining rewards and hash rates while proving validity
-    pub fn prove_mining_privacy(
+    /// Generate CN-UPX/2 mining privacy proof
+    /// Hides mining rewards and hash rates while proving CN-UPX/2 validity
+    pub fn prove_cnupx2_mining_privacy(
         &mut self,
-        algorithm: &str,
         block_height: u64,
         reward: u64,
         hash_rate: u64,
+        cnupx2_hash: &[u8],
     ) -> Result<MiningPrivacyProof> {
         let start_time = std::time::Instant::now();
         
@@ -384,17 +384,17 @@ impl AdvancedPrivacyStarkSystem {
             return Err(anyhow!("Reward cannot be zero"));
         }
         
-        // Generate reward proof
-        let reward_proof = self.generate_reward_proof(reward)?;
+        // Generate CN-UPX/2 reward proof
+        let reward_proof = self.generate_cnupx2_reward_proof(reward)?;
         
-        // Generate hash rate proof
-        let hash_rate_proof = self.generate_hash_rate_proof(hash_rate)?;
+        // Generate CN-UPX/2 hash rate proof
+        let hash_rate_proof = self.generate_cnupx2_hash_rate_proof(hash_rate)?;
         
-        // Generate difficulty proof
-        let difficulty_proof = self.generate_difficulty_proof(block_height)?;
+        // Generate CN-UPX/2 difficulty proof
+        let difficulty_proof = self.generate_cnupx2_difficulty_proof(block_height)?;
         
-        // Generate block proof
-        let block_proof = self.generate_block_proof(block_height)?;
+        // Generate CN-UPX/2 block proof
+        let block_proof = self.generate_cnupx2_block_proof(block_height, cnupx2_hash)?;
         
         // Create privacy guarantees
         let privacy_guarantees = MiningPrivacyGuarantees {
@@ -407,10 +407,10 @@ impl AdvancedPrivacyStarkSystem {
         
         // Create metadata
         let metadata = MiningPrivacyMetadata {
-            algorithm: algorithm.to_string(),
+            algorithm: "cnupx2".to_string(), // CN-UPX/2 algorithm
             block_height,
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            privacy_level: 100, // Maximum privacy for mining
+            privacy_level: 100, // Maximum privacy for CN-UPX/2 mining
         };
         
         let generation_time = start_time.elapsed();
@@ -613,38 +613,43 @@ impl AdvancedPrivacyStarkSystem {
         Ok(commitment)
     }
     
-    /// Generate reward proof
-    fn generate_reward_proof(&self, reward: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual reward proofs
+    /// Generate CN-UPX/2 reward proof
+    fn generate_cnupx2_reward_proof(&self, reward: u64) -> Result<Vec<u8>> {
+        // In production, this would generate actual CN-UPX/2 reward proofs
         let mut proof = Vec::new();
+        proof.extend_from_slice(b"cnupx2_reward");
         proof.extend_from_slice(&reward.to_le_bytes());
         proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
         Ok(proof)
     }
     
-    /// Generate hash rate proof
-    fn generate_hash_rate_proof(&self, hash_rate: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual hash rate proofs
+    /// Generate CN-UPX/2 hash rate proof
+    fn generate_cnupx2_hash_rate_proof(&self, hash_rate: u64) -> Result<Vec<u8>> {
+        // In production, this would generate actual CN-UPX/2 hash rate proofs
         let mut proof = Vec::new();
+        proof.extend_from_slice(b"cnupx2_hash_rate");
         proof.extend_from_slice(&hash_rate.to_le_bytes());
         proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
         Ok(proof)
     }
     
-    /// Generate difficulty proof
-    fn generate_difficulty_proof(&self, block_height: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual difficulty proofs
+    /// Generate CN-UPX/2 difficulty proof
+    fn generate_cnupx2_difficulty_proof(&self, block_height: u64) -> Result<Vec<u8>> {
+        // In production, this would generate actual CN-UPX/2 difficulty proofs
         let mut proof = Vec::new();
+        proof.extend_from_slice(b"cnupx2_difficulty");
         proof.extend_from_slice(&block_height.to_le_bytes());
         proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
         Ok(proof)
     }
     
-    /// Generate block proof
-    fn generate_block_proof(&self, block_height: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual block proofs
+    /// Generate CN-UPX/2 block proof
+    fn generate_cnupx2_block_proof(&self, block_height: u64, cnupx2_hash: &[u8]) -> Result<Vec<u8>> {
+        // In production, this would generate actual CN-UPX/2 block proofs
         let mut proof = Vec::new();
+        proof.extend_from_slice(b"cnupx2_block");
         proof.extend_from_slice(&block_height.to_le_bytes());
+        proof.extend_from_slice(cnupx2_hash);
         proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
         Ok(proof)
     }
@@ -797,18 +802,19 @@ mod tests {
     }
     
     #[test]
-    fn test_mining_privacy_proof() {
+    fn test_cnupx2_mining_privacy_proof() {
         let config = AdvancedPrivacyConfig::default();
         let mut system = AdvancedPrivacyStarkSystem::new(config).unwrap();
         
-        let proof = system.prove_mining_privacy("sha256", 12345, 1000, 50000);
+        let cnupx2_hash = b"cnupx2_test_hash_12345";
+        let proof = system.prove_cnupx2_mining_privacy(12345, 1000, 50000, cnupx2_hash);
         assert!(proof.is_ok());
         
         let proof = proof.unwrap();
         assert!(proof.privacy_guarantees.reward_hidden);
         assert!(proof.privacy_guarantees.hash_rate_hidden);
         assert!(proof.privacy_guarantees.difficulty_hidden);
-        assert_eq!(proof.metadata.algorithm, "sha256");
+        assert_eq!(proof.metadata.algorithm, "cnupx2");
         assert_eq!(proof.metadata.block_height, 12345);
     }
     
@@ -892,7 +898,8 @@ mod tests {
         
         // Generate some proofs
         let _ = system.prove_cross_chain_privacy("ethereum", "bitcoin", 1000, "bridge_1");
-        let _ = system.prove_mining_privacy("sha256", 12345, 1000, 50000);
+        let cnupx2_hash = b"cnupx2_test_hash_12345";
+        let _ = system.prove_cnupx2_mining_privacy(12345, 1000, 50000, cnupx2_hash);
         
         let metrics = system.get_advanced_metrics();
         assert_eq!(metrics.total_advanced_proofs, 2);
