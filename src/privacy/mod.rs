@@ -26,6 +26,7 @@ pub mod production_privacy_monitoring;
 pub mod production_performance_optimization;
 pub mod production_deployment_prep;
 pub mod phase4_performance_optimization;
+pub mod xfg_winterfell_integration;
 
 #[cfg(test)]
 mod tests;
@@ -313,4 +314,20 @@ pub use phase4_performance_optimization::{
     CacheConfiguration,
     CacheStatistics,
     MemoryOptimizationResult,
+};
+
+// XFG Winterfell Integration exports
+pub use xfg_winterfell_integration::{
+    XfgWinterfellManager,
+    VerifiedBurn,
+    VerificationStatus,
+    YieldGenerationState,
+    YieldPool,
+    YieldPoolType,
+    PoolStatus,
+    FuegoConnection,
+    XfgWinterfellMetrics,
+    SyncStatus,
+    SyncResult,
+    ProofType,
 };

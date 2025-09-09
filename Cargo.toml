@@ -80,3 +80,6 @@ merlin = "3.0"              # Transcript for zero-knowledge proofs
 # Phase 4: Performance Optimization Dependencies
 rayon = "1.8"               # Parallel processing
 num_cpus = "1.16"           # CPU core detection
+
+# XFG Winterfell STARK Integration
+xfg-winterfell = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
