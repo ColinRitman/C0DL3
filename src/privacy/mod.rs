@@ -11,6 +11,7 @@ pub mod address_encryption;
 pub mod timing_privacy;
 pub mod production_stark_proofs;
 pub mod production_stark_core;
+pub mod transaction_privacy_starks;
 pub mod advanced_privacy_features;
 pub mod performance_optimization;
 pub mod security_audit_prep;
@@ -54,6 +55,17 @@ pub use production_stark_core::{
     C0dl3ConstraintSystem,
     Constraint,
     ConstraintType,
+};
+
+// Transaction Privacy STARK exports
+pub use transaction_privacy_starks::{
+    TransactionPrivacyStarkSystem,
+    TransactionPrivacyProof,
+    TransactionPrivacyConfig,
+    TransactionPrivacyProofType,
+    PrivacyGuarantees,
+    PrivacyMetrics,
+    TransactionPrivacyMetadata,
 };
 pub use amount_commitments::{
     AmountCommitment,
