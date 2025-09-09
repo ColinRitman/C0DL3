@@ -31,7 +31,7 @@ fn main() {
     // Test 3: Cross-Chain Privacy Testing
     println!("\n3. Testing Cross-Chain Privacy...");
     let cross_chain_pairs = [
-        ("ethereum", "bitcoin"),
+        ("ethereum", "fuego"),
         ("polygon", "arbitrum"),
         ("optimism", "base"),
         ("avalanche", "fantom"),

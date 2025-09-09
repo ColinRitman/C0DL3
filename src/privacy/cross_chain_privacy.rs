@@ -253,9 +253,9 @@ impl CrossChainPrivacyCoordinator {
     pub fn new() -> Self {
         let mut supported_chains = HashMap::new();
         
-        // Add default supported networks
+        // Add default supported networks (Bitcoin removed - focus on Fuego)
         supported_chains.insert("ethereum".to_string(), Self::create_ethereum_network());
-        supported_chains.insert("bitcoin".to_string(), Self::create_bitcoin_network());
+        supported_chains.insert("fuego".to_string(), Self::create_fuego_network());
         supported_chains.insert("cosmos".to_string(), Self::create_cosmos_network());
         
         Self {
@@ -278,7 +278,7 @@ impl CrossChainPrivacyCoordinator {
                 total_cross_chain_transactions: 0,
                 privacy_maintained_transactions: 0,
                 avg_cross_chain_privacy_level: 100.0,
-                supported_networks_count: 3,
+                supported_networks_count: 3, // Ethereum, Fuego, Cosmos
                 active_bridges_count: 0,
             })),
         }
@@ -427,27 +427,27 @@ impl CrossChainPrivacyCoordinator {
         }
     }
     
-    fn create_bitcoin_network() -> BlockchainNetwork {
+    fn create_fuego_network() -> BlockchainNetwork {
         BlockchainNetwork {
-            network_id: "bitcoin".to_string(),
-            network_name: "Bitcoin Mainnet".to_string(),
-            network_type: NetworkType::Bitcoin,
+            network_id: "fuego".to_string(),
+            network_name: "Fuego Mainnet".to_string(),
+            network_type: NetworkType::Custom("Fuego".to_string()),
             privacy_capabilities: PrivacyCapabilities {
                 amount_privacy: true,
                 address_privacy: true,
-                timing_privacy: false, // Bitcoin has limited timing privacy
-                zk_proofs: false, // Bitcoin doesn't support ZK proofs natively
+                timing_privacy: true,
+                zk_proofs: true,
                 mixing: true,
-                privacy_level: 80,
+                privacy_level: 95, // High privacy for Fuego
             },
             bridge_config: BridgeConfiguration {
-                bridge_address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh".to_string(),
-                bridge_type: BridgeType::AtomicSwap,
+                bridge_address: "fuego1abc123def456ghi789jkl012mno345pqr678stu".to_string(),
+                bridge_type: BridgeType::LockAndMint,
                 privacy_settings: BridgePrivacySettings {
                     encrypt_transactions: true,
-                    use_privacy_proofs: false,
+                    use_privacy_proofs: true,
                     mix_transactions: true,
-                    bridge_privacy_level: 80,
+                    bridge_privacy_level: 95,
                 },
             },
         }
@@ -639,7 +639,7 @@ mod tests {
         
         assert_eq!(networks.len(), 3);
         assert!(networks.iter().any(|n| n.network_id == "ethereum"));
-        assert!(networks.iter().any(|n| n.network_id == "bitcoin"));
+        assert!(networks.iter().any(|n| n.network_id == "fuego"));
         assert!(networks.iter().any(|n| n.network_id == "cosmos"));
     }
     

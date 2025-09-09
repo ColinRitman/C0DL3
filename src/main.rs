@@ -54,17 +54,7 @@ async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
     let input_data = format!("fuego_block_{}_{}", height, timestamp);
     let cn_upx2_hash = calculate_cn_upx2_hash_local(input_data.as_bytes())?;
     
-    // Create AuxPoW for merge-mining
-    let aux_pow = AuxPow {
-        coinbase_tx: format!("0x{:064x}", height),
-        coinbase_branch: vec![format!("0x{:064x}", height * 2)],
-        coinbase_index: 0,
-        block_hash: format!("0x{:064x}", cn_upx2_hash[0] as u64),
-        parent_block_hash: format!("0x{:064x}", height - 1),
-        parent_merkle_branch: vec![format!("0x{:064x}", height * 3)],
-        parent_merkle_index: 0,
-        parent_block_header: format!("0x{:064x}", height - 1),
-    };
+    // Note: AuxPoW removed - C0DL3 focuses on Fuego CN-UPX/2 merge mining only
     
     let fuego_block = FuegoBlock {
         height,
@@ -74,7 +64,7 @@ async fn mine_fuego_block(config: &NodeConfig) -> Result<FuegoBlock> {
         nonce: height,
         difficulty: 1000, // Default difficulty
         merkle_root: format!("0x{:064x}", cn_upx2_hash[1] as u64),
-        aux_pow: Some(aux_pow),
+        aux_pow: None, // AuxPoW removed - Fuego-only merge mining
     };
     
     Ok(fuego_block)
@@ -95,20 +85,10 @@ pub struct FuegoBlock {
     pub nonce: u64,
     pub difficulty: u64,
     pub merkle_root: String,
-    pub aux_pow: Option<AuxPow>,
+    pub aux_pow: Option<String>, // Simplified - no complex AuxPoW structure
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuxPow {
-    pub coinbase_tx: String,
-    pub coinbase_branch: Vec<String>,
-    pub coinbase_index: u32,
-    pub block_hash: String,
-    pub parent_block_hash: String,
-    pub parent_merkle_branch: Vec<String>,
-    pub parent_merkle_index: u32,
-    pub parent_block_header: String,
-}
+// AuxPoW struct removed - C0DL3 focuses on Fuego CN-UPX/2 merge mining only
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CNUPX2Hash {

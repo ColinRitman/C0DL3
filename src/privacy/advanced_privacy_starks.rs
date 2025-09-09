@@ -755,7 +755,7 @@ mod tests {
         let config = AdvancedPrivacyConfig::default();
         let mut system = AdvancedPrivacyStarkSystem::new(config).unwrap();
         
-        let proof = system.prove_cross_chain_privacy("ethereum", "bitcoin", 1000, "bridge_1");
+        let proof = system.prove_cross_chain_privacy("ethereum", "fuego", 1000, "bridge_1");
         assert!(proof.is_ok());
         
         let proof = proof.unwrap();
@@ -763,7 +763,7 @@ mod tests {
         assert!(proof.privacy_guarantees.target_amount_hidden);
         assert!(proof.privacy_guarantees.bridge_state_hidden);
         assert_eq!(proof.metadata.source_chain, "ethereum");
-        assert_eq!(proof.metadata.target_chain, "bitcoin");
+        assert_eq!(proof.metadata.target_chain, "fuego");
     }
     
     #[test]
@@ -863,7 +863,7 @@ mod tests {
         let mut system = AdvancedPrivacyStarkSystem::new(config).unwrap();
         
         // Generate some proofs
-        let _ = system.prove_cross_chain_privacy("ethereum", "bitcoin", 1000, "bridge_1");
+        let _ = system.prove_cross_chain_privacy("ethereum", "fuego", 1000, "bridge_1");
         let cnupx2_hash = b"cnupx2_test_hash_12345";
         let _ = system.prove_cnupx2_mining_privacy(12345, 1000, 50000, cnupx2_hash);
         
