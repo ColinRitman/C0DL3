@@ -19,6 +19,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 pub struct XfgWinterfellManager {
     /// Verified XFG burn proofs
     verified_burns: Arc<Mutex<HashMap<String, VerifiedBurn>>>,
+    /// Verified COLD deposits
+    verified_cold_deposits: Arc<Mutex<HashMap<String, VerifiedColdDeposit>>>,
+    /// HEAT token state (bridged from ETH L1)
+    heat_token_state: Arc<Mutex<HeatTokenState>>,
     /// COLD yield generation state
     yield_state: Arc<Mutex<YieldGenerationState>>,
     /// Fuego blockchain connection
@@ -67,6 +71,94 @@ pub struct VerifiedColdDeposit {
     pub verification_status: VerificationStatus,
     /// Transaction extra tag (0x07)
     pub tx_extra_tag: FuegoTxExtraTag,
+}
+
+/// HEAT token state (bridged from ETH L1)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeatTokenState {
+    /// Total HEAT tokens bridged
+    pub total_bridged: u64,
+    /// HEAT tokens available for distribution
+    pub available_for_distribution: u64,
+    /// HEAT tokens locked in contracts
+    pub locked_in_contracts: u64,
+    /// Last bridge transaction hash
+    pub last_bridge_tx: Option<String>,
+    /// Bridge status
+    pub bridge_status: BridgeStatus,
+    /// Pending L1 mint authorizations
+    pub pending_l1_mints: Vec<PendingL1Mint>,
+    /// zkSync message bridge status
+    pub message_bridge_status: MessageBridgeStatus,
+}
+
+/// Pending L1 mint authorization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingL1Mint {
+    /// C0DL3 transaction hash
+    pub c0dl3_tx_hash: String,
+    /// Fuego deposit proof hash
+    pub fuego_proof_hash: String,
+    /// Amount to mint on L1
+    pub mint_amount: u64,
+    /// Timestamp when authorization was created
+    pub created_timestamp: u64,
+    /// zkSync message bridge transaction hash
+    pub bridge_tx_hash: Option<String>,
+    /// L1 mint transaction hash (after authorization)
+    pub l1_mint_tx_hash: Option<String>,
+    /// Authorization status
+    pub status: L1MintStatus,
+}
+
+/// L1 mint authorization status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum L1MintStatus {
+    /// Pending zkSync message bridge
+    PendingBridge,
+    /// Bridge message sent to L1
+    BridgeSent,
+    /// L1 authorization received
+    Authorized,
+    /// L1 mint completed
+    Minted,
+    /// Authorization failed
+    Failed,
+}
+
+/// zkSync message bridge status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MessageBridgeStatus {
+    /// Bridge is active
+    Active,
+    /// Bridge is paused
+    Paused,
+    /// Bridge is upgrading
+    Upgrading,
+    /// Bridge has failed
+    Failed,
+}
+
+/// Bridge status for HEAT tokens
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum BridgeStatus {
+    /// Bridge is active
+    Active,
+    /// Bridge is paused
+    Paused,
+    /// Bridge is upgrading
+    Upgrading,
+    /// Bridge has failed
+    Failed,
+}
+
+/// Token types supported by C0DL3
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TokenType {
+    /// HEAT token (lives on ETH L1, bridged to C0DL3)
+    Heat,
+    /// COLD token (lives on C0DL3, generated from Fuego deposits)
+    Cold,
 }
 
 /// Verification status
@@ -242,6 +334,16 @@ impl XfgWinterfellManager {
 
         Ok(Self {
             verified_burns: Arc::new(Mutex::new(HashMap::new())),
+            verified_cold_deposits: Arc::new(Mutex::new(HashMap::new())),
+            heat_token_state: Arc::new(Mutex::new(HeatTokenState {
+                total_bridged: 0,
+                available_for_distribution: 0,
+                locked_in_contracts: 0,
+                last_bridge_tx: None,
+                bridge_status: BridgeStatus::Active,
+                pending_l1_mints: Vec::new(),
+                message_bridge_status: MessageBridgeStatus::Active,
+            })),
             yield_state: Arc::new(Mutex::new(YieldGenerationState {
                 total_cold_generated: 0,
                 total_xfg_burned: 0,
@@ -396,6 +498,191 @@ impl XfgWinterfellManager {
         self.update_verification_metrics(verification_time, verification_result);
 
         Ok(verified_deposit)
+    }
+
+    /// Process HEAT token bridge from ETH L1 to C0DL3 via zkSync message bridge
+    pub async fn process_heat_bridge(
+        &mut self,
+        bridge_tx_hash: &str,
+        heat_amount: u64,
+        eth_block_height: u64,
+        stark_proof_data: &[u8],
+    ) -> Result<()> {
+        let start_time = Instant::now();
+        
+        // Verify STARK proof for HEAT bridge
+        let verification_result = self.verify_stark_proof(stark_proof_data)?;
+        
+        if !verification_result {
+            return Err(anyhow!("HEAT bridge proof verification failed"));
+        }
+
+        // Create pending L1 mint authorization
+        let pending_mint = PendingL1Mint {
+            c0dl3_tx_hash: bridge_tx_hash.to_string(),
+            fuego_proof_hash: format!("{:x}", sha2::Sha256::digest(stark_proof_data)),
+            mint_amount: heat_amount,
+            created_timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            bridge_tx_hash: None,
+            l1_mint_tx_hash: None,
+            status: L1MintStatus::PendingBridge,
+        };
+
+        // Update HEAT token state
+        {
+            let mut heat_state = self.heat_token_state.lock().unwrap();
+            heat_state.total_bridged += heat_amount;
+            heat_state.available_for_distribution += heat_amount;
+            heat_state.last_bridge_tx = Some(bridge_tx_hash.to_string());
+            heat_state.bridge_status = BridgeStatus::Active;
+            heat_state.pending_l1_mints.push(pending_mint);
+        }
+
+        // Update metrics
+        let bridge_time = start_time.elapsed();
+        {
+            let mut metrics = self.metrics.lock().unwrap();
+            metrics.total_burns_processed += 1; // Count as processed transaction
+        }
+
+        Ok(())
+    }
+
+    /// Send zkSync message bridge to L1 for HEAT mint authorization
+    pub async fn send_l1_mint_authorization(
+        &mut self,
+        c0dl3_tx_hash: &str,
+        fuego_proof_hash: &str,
+        mint_amount: u64,
+    ) -> Result<String> {
+        let start_time = Instant::now();
+        
+        // Simulate zkSync message bridge to L1
+        let bridge_tx_hash = format!("zksync_bridge_{}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos());
+        
+        // Update pending mint status
+        {
+            let mut heat_state = self.heat_token_state.lock().unwrap();
+            if let Some(pending_mint) = heat_state.pending_l1_mints.iter_mut()
+                .find(|mint| mint.c0dl3_tx_hash == c0dl3_tx_hash) {
+                pending_mint.bridge_tx_hash = Some(bridge_tx_hash.clone());
+                pending_mint.status = L1MintStatus::BridgeSent;
+            }
+        }
+
+        let bridge_time = start_time.elapsed();
+        
+        Ok(bridge_tx_hash)
+    }
+
+    /// Process L1 mint authorization response
+    pub async fn process_l1_mint_authorization(
+        &mut self,
+        bridge_tx_hash: &str,
+        l1_mint_tx_hash: &str,
+        success: bool,
+    ) -> Result<()> {
+        let start_time = Instant::now();
+        
+        // Update pending mint status
+        {
+            let mut heat_state = self.heat_token_state.lock().unwrap();
+            if let Some(pending_mint) = heat_state.pending_l1_mints.iter_mut()
+                .find(|mint| mint.bridge_tx_hash.as_ref() == Some(&bridge_tx_hash.to_string())) {
+                pending_mint.l1_mint_tx_hash = Some(l1_mint_tx_hash.to_string());
+                pending_mint.status = if success {
+                    L1MintStatus::Minted
+                } else {
+                    L1MintStatus::Failed
+                };
+            }
+        }
+
+        let process_time = start_time.elapsed();
+        
+        Ok(())
+    }
+
+    /// Generate COLD tokens from verified Fuego deposits (direct mint on C0DL3)
+    pub async fn generate_cold_tokens(
+        &mut self,
+        deposit_tx_hash: &str,
+        fuego_deposit_amount: u64,
+        token_type: TokenType,
+    ) -> Result<u64> {
+        let start_time = Instant::now();
+        
+        // Calculate COLD token generation based on token type
+        let cold_amount = match token_type {
+            TokenType::Heat => {
+                // HEAT tokens generate COLD at 1:1 ratio
+                fuego_deposit_amount
+            },
+            TokenType::Cold => {
+                // COLD deposits generate additional COLD at 0.1% yield rate
+                (fuego_deposit_amount as f64 * 0.001) as u64
+            },
+        };
+
+        // Direct mint COLD tokens on C0DL3 (no L1 bridge needed)
+        let mint_tx_hash = format!("cold_mint_{}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos());
+        
+        // Update yield state
+        {
+            let mut yield_state = self.yield_state.lock().unwrap();
+            yield_state.total_cold_generated += cold_amount;
+            yield_state.total_xfg_burned += fuego_deposit_amount;
+            yield_state.last_yield_timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        }
+
+        // Update metrics
+        {
+            let mut metrics = self.metrics.lock().unwrap();
+            metrics.total_cold_generated += cold_amount;
+        }
+
+        let generation_time = start_time.elapsed();
+        
+        Ok(cold_amount)
+    }
+
+    /// Verify and mint COLD tokens directly on C0DL3
+    pub async fn verify_and_mint_cold(
+        &mut self,
+        deposit_tx_hash: &str,
+        fuego_deposit_amount: u64,
+        stark_proof_data: &[u8],
+    ) -> Result<(u64, String)> {
+        let start_time = Instant::now();
+        
+        // Verify STARK proof for COLD deposit
+        let verification_result = self.verify_stark_proof(stark_proof_data)?;
+        
+        if !verification_result {
+            return Err(anyhow!("COLD deposit proof verification failed"));
+        }
+
+        // Generate COLD tokens directly on C0DL3
+        let cold_amount = self.generate_cold_tokens(deposit_tx_hash, fuego_deposit_amount, TokenType::Cold).await?;
+        
+        // Create mint transaction hash
+        let mint_tx_hash = format!("cold_mint_{}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos());
+        
+        let mint_time = start_time.elapsed();
+        
+        Ok((cold_amount, mint_tx_hash))
+    }
+
+    /// Get HEAT token state
+    pub fn get_heat_token_state(&self) -> Result<HeatTokenState> {
+        let heat_state = self.heat_token_state.lock().map_err(|_| anyhow!("Lock failed"))?;
+        Ok(heat_state.clone())
+    }
+
+    /// Get COLD token metrics
+    pub fn get_cold_token_metrics(&self) -> Result<(u64, u64)> {
+        let yield_state = self.yield_state.lock().map_err(|_| anyhow!("Lock failed"))?;
+        Ok((yield_state.total_cold_generated, yield_state.total_xfg_burned))
     }
 
     /// Verify STARK proof using xfg-winterfell library

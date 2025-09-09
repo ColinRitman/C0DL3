@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
 use rand::RngCore;
+use crate::security::{SecureRng, RpcValidator};
 
 /// Encrypted address structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +40,10 @@ pub struct AddressEncryption {
     encryption_key: [u8; 32],
     /// Key derivation context
     key_context: String,
+    /// Secure RNG for key generation
+    secure_rng: SecureRng,
+    /// RPC validator for input validation
+    rpc_validator: RpcValidator,
 }
 
 impl AddressEncryption {
@@ -47,6 +52,8 @@ impl AddressEncryption {
         Ok(Self {
             encryption_key: *key,
             key_context: "zkc0dl3_address_encryption".to_string(),
+            secure_rng: SecureRng::new()?,
+            rpc_validator: RpcValidator::new(),
         })
     }
     
@@ -124,13 +131,11 @@ impl AddressEncryption {
     
     /// Encrypt address with specified type
     fn encrypt_address(&self, address: &str, address_type: &str) -> Result<EncryptedAddress> {
-        // Validate address
-        if address.is_empty() {
-            return Err(anyhow!("Address cannot be empty"));
-        }
+        // Validate address using RPC validator
+        self.rpc_validator.validate_address(address)?;
         
-        // Generate random nonce
-        let nonce = self.generate_nonce()?;
+        // Generate secure random nonce
+        let nonce = self.generate_secure_nonce()?;
         
         // Encrypt address using ChaCha20Poly1305 (simplified implementation)
         let (ciphertext, tag) = self.encrypt_data(address.as_bytes(), &nonce)?;
@@ -152,11 +157,14 @@ impl AddressEncryption {
         })
     }
     
-    /// Generate cryptographically secure nonce
+    /// Generate cryptographically secure nonce using secure RNG
+    fn generate_secure_nonce(&self) -> Result<[u8; 12]> {
+        self.secure_rng.generate_nonce()
+    }
+    
+    /// Generate cryptographically secure nonce (legacy method)
     fn generate_nonce(&self) -> Result<[u8; 12]> {
-        let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
-        Ok(nonce)
+        self.generate_secure_nonce()
     }
     
     /// Encrypt data using ChaCha20Poly1305 (simplified implementation)

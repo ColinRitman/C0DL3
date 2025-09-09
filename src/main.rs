@@ -11,6 +11,7 @@ mod fuego_daemon;
 mod fuego_units;
 mod privacy;
 mod mining;
+mod security;
 // mod unified_cli;
 // mod cli_interface;
 // mod visual_cli;
@@ -1999,6 +2000,15 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     
     let config = create_node_config(&cli);
+
+    // Run security vulnerability fixes
+    info!("🔒 Running security vulnerability fixes...");
+    let mut security_manager = security::SecurityFixManager::new()?;
+    security_manager.run_security_tests()?;
+    
+    let metrics = security_manager.get_metrics();
+    info!("🛡️ Security score: {}%", metrics.security_score);
+    info!("🔧 Vulnerabilities fixed: {}", metrics.vulnerabilities_fixed);
 
     info!("C0DL3 zkSync Node starting...");
     info!("Log level: {}", cli.log_level);

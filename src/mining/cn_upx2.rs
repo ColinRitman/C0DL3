@@ -8,6 +8,7 @@ use blake3::Hasher as Blake3Hasher;
 use sha2::{Sha256, Digest};
 use ripemd::Ripemd160;
 use std::collections::HashMap;
+use crate::security::SecureMath;
 
 /// CN-UPX/2 algorithm parameters
 pub const CN_UPX2_MEMORY_SIZE: usize = 2 * 1024 * 1024; // 2MB scratchpad

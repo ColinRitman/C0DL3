@@ -26,7 +26,9 @@ pub mod production_privacy_monitoring;
 pub mod production_performance_optimization;
 pub mod production_deployment_prep;
 pub mod phase4_performance_optimization;
-pub mod xfg_winterfell_integration;
+pub mod phase5_security_audit;
+pub mod phase6_production_deployment;
+// pub mod xfg_winterfell_integration;
 
 #[cfg(test)]
 mod tests;
@@ -316,20 +318,102 @@ pub use phase4_performance_optimization::{
     MemoryOptimizationResult,
 };
 
-// XFG Winterfell Integration exports
-pub use xfg_winterfell_integration::{
-    XfgWinterfellManager,
-    VerifiedBurn,
-    VerifiedColdDeposit,
-    VerificationStatus,
-    YieldGenerationState,
-    YieldPool,
-    YieldPoolType,
-    PoolStatus,
-    FuegoConnection,
-    XfgWinterfellMetrics,
-    SyncStatus,
-    SyncResult,
-    ProofType,
-    FuegoTxExtraTag,
+// Phase 5: Security Audit exports
+pub use phase5_security_audit::{
+    SecurityAuditManager,
+    VulnerabilityReport,
+    SeverityLevel,
+    VulnerabilityStatus,
+    SecurityTestResult,
+    SecurityTestCategory,
+    TestResult,
+    ComplianceStatus,
+    ComplianceRequirement,
+    ComplianceStatusType,
+    SecurityMetrics,
+    ThreatIntelligence,
+    AttackVector,
+    ThreatActor,
+    ThreatActorType,
+    ActivityLevel,
+    SecurityAdvisory,
+    AuditReport,
 };
+
+// Phase 6: Production Deployment exports
+pub use phase6_production_deployment::{
+    ProductionDeploymentManager,
+    DeploymentConfig,
+    EnvironmentType,
+    NodeConfig,
+    NodeType,
+    ResourceAllocation,
+    ScalingConfig,
+    ScalingTrigger,
+    TriggerType,
+    ScalingAction,
+    NetworkConfig,
+    DatabaseConfig,
+    DatabaseType,
+    BackupConfig,
+    BackupFrequency,
+    MonitoringConfig,
+    LoggingConfig,
+    LogLevel,
+    LogFormat,
+    LogDestination,
+    AlertingConfig,
+    AlertChannel,
+    ChannelType,
+    AlertRule,
+    AlertSeverity,
+    DashboardConfig,
+    DashboardWidget,
+    WidgetType,
+    SecurityConfig,
+    SslConfig,
+    FirewallConfig,
+    AccessControl,
+    InfrastructureStatus,
+    InfrastructureHealth,
+    ComponentStatus,
+    ComponentHealth,
+    MonitoringSystems,
+    SystemMetrics,
+    NetworkIo,
+    ApplicationMetrics,
+    NetworkMetrics,
+    DatabaseMetrics,
+    DeploymentMetrics,
+    DeploymentStatus,
+    ProductionReadinessChecklist,
+    ReadinessItem,
+    ReadinessStatus,
+    ReadinessCategory,
+    ReadinessPriority,
+    DeploymentResult,
+};
+
+// XFG Winterfell Integration exports
+// pub use xfg_winterfell_integration::{
+//     XfgWinterfellManager,
+//     VerifiedBurn,
+//     VerifiedColdDeposit,
+//     HeatTokenState,
+//     PendingL1Mint,
+//     L1MintStatus,
+//     MessageBridgeStatus,
+//     BridgeStatus,
+//     TokenType,
+//     VerificationStatus,
+//     YieldGenerationState,
+//     YieldPool,
+//     YieldPoolType,
+//     PoolStatus,
+//     FuegoConnection,
+//     XfgWinterfellMetrics,
+//     SyncStatus,
+//     SyncResult,
+//     ProofType,
+//     FuegoTxExtraTag,
+// };
