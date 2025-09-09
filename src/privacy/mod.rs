@@ -28,7 +28,7 @@ pub mod production_deployment_prep;
 pub mod phase4_performance_optimization;
 pub mod phase5_security_audit;
 pub mod phase6_production_deployment;
-// pub mod xfg_winterfell_integration;
+pub mod xfg_winterfell_integration;
 
 #[cfg(test)]
 mod tests;
@@ -395,25 +395,25 @@ pub use phase6_production_deployment::{
 };
 
 // XFG Winterfell Integration exports
-// pub use xfg_winterfell_integration::{
-//     XfgWinterfellManager,
-//     VerifiedBurn,
-//     VerifiedColdDeposit,
-//     HeatTokenState,
-//     PendingL1Mint,
-//     L1MintStatus,
-//     MessageBridgeStatus,
-//     BridgeStatus,
-//     TokenType,
-//     VerificationStatus,
-//     YieldGenerationState,
-//     YieldPool,
-//     YieldPoolType,
-//     PoolStatus,
-//     FuegoConnection,
-//     XfgWinterfellMetrics,
-//     SyncStatus,
-//     SyncResult,
-//     ProofType,
-//     FuegoTxExtraTag,
-// };
+pub use xfg_winterfell_integration::{
+    XfgWinterfellManager,
+    VerifiedBurn,
+    VerifiedColdDeposit,
+    HeatTokenState,
+    PendingL1Mint,
+    L1MintStatus,
+    MessageBridgeStatus,
+    BridgeStatus,
+    TokenType,
+    VerificationStatus,
+    YieldGenerationState,
+    YieldPool,
+    YieldPoolType,
+    PoolStatus,
+    FuegoConnection,
+    XfgWinterfellMetrics,
+    SyncStatus,
+    SyncResult,
+    ProofType,
+    FuegoTxExtraTag,
+};

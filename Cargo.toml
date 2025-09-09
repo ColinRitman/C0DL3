@@ -82,4 +82,4 @@ rayon = "1.8"               # Parallel processing
 num_cpus = "1.16"           # CPU core detection
 
 # XFG Winterfell STARK Integration
-# xfg-winterfell = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
+xfg-stark = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
