@@ -48,7 +48,7 @@ fn main() {
     println!("   ✅ CN-UPX/2: Merge mining compatibility");
     println!("   ✅ CN-UPX/2: Mining rewards privacy");
     println!("   ✅ CN-UPX/2: Hash rate privacy");
-    println!("   ✅ CN-UPX/2: Difficulty privacy");
+    println!("   ✅ CN-UPX/2: Difficulty public (required for mining)");
     println!("   ✅ CN-UPX/2: Block data privacy");
     
     // Test 5: Privacy Aggregation Testing
@@ -101,6 +101,7 @@ fn main() {
         ("Cross-chain amounts hidden", true),
         ("Mining rewards hidden", true),
         ("Hash rates hidden", true),
+        ("Difficulty public (required for mining)", true),
         ("Bridge state hidden", true),
         ("Recursion process hidden", true),
         ("Aggregation process hidden", true),
