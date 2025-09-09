@@ -384,24 +384,19 @@ impl AdvancedPrivacyStarkSystem {
             return Err(anyhow!("Reward cannot be zero"));
         }
         
-        // Generate CN-UPX/2 reward proof
-        let reward_proof = self.generate_cnupx2_reward_proof(reward)?;
-        
-        // Generate CN-UPX/2 hash rate proof
-        let hash_rate_proof = self.generate_cnupx2_hash_rate_proof(hash_rate)?;
+        // Note: Rewards and hash rates are public information needed for mining operations
         
         // Note: Difficulty is public information, no privacy proof needed
         
-        // Generate CN-UPX/2 block proof
-        let block_proof = self.generate_cnupx2_block_proof(block_height, cnupx2_hash)?;
+        // Note: Block data is public information needed for consensus validation
         
         // Create privacy guarantees
         let privacy_guarantees = MiningPrivacyGuarantees {
-            reward_hidden: true,
-            hash_rate_hidden: true,
+            reward_hidden: false, // Rewards are public (gas fees, etc.)
+            hash_rate_hidden: false, // Hash rate needed for mining pools
             difficulty_hidden: false, // Difficulty is public information
-            block_data_hidden: true,
-            miner_identity_hidden: true,
+            block_data_hidden: false, // Block data needed for consensus
+            miner_identity_hidden: true, // Only miner identity is private
         };
         
         // Create metadata
@@ -612,39 +607,17 @@ impl AdvancedPrivacyStarkSystem {
         Ok(commitment)
     }
     
-    /// Generate CN-UPX/2 reward proof
-    fn generate_cnupx2_reward_proof(&self, reward: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual CN-UPX/2 reward proofs
-        let mut proof = Vec::new();
-        proof.extend_from_slice(b"cnupx2_reward");
-        proof.extend_from_slice(&reward.to_le_bytes());
-        proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
-        Ok(proof)
-    }
+    /// Note: CN-UPX/2 rewards are public information
+    /// No privacy proof needed for rewards as they're required for mining incentives
     
-    /// Generate CN-UPX/2 hash rate proof
-    fn generate_cnupx2_hash_rate_proof(&self, hash_rate: u64) -> Result<Vec<u8>> {
-        // In production, this would generate actual CN-UPX/2 hash rate proofs
-        let mut proof = Vec::new();
-        proof.extend_from_slice(b"cnupx2_hash_rate");
-        proof.extend_from_slice(&hash_rate.to_le_bytes());
-        proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
-        Ok(proof)
-    }
+    /// Note: CN-UPX/2 hash rates are public information  
+    /// No privacy proof needed for hash rates as they're required for mining pools
     
     /// Note: CN-UPX/2 difficulty is public information
     /// No privacy proof needed for difficulty as it's required for mining operations
     
-    /// Generate CN-UPX/2 block proof
-    fn generate_cnupx2_block_proof(&self, block_height: u64, cnupx2_hash: &[u8]) -> Result<Vec<u8>> {
-        // In production, this would generate actual CN-UPX/2 block proofs
-        let mut proof = Vec::new();
-        proof.extend_from_slice(b"cnupx2_block");
-        proof.extend_from_slice(&block_height.to_le_bytes());
-        proof.extend_from_slice(cnupx2_hash);
-        proof.extend_from_slice(&[32u8, 4u8, 8u8]); // FRI parameters
-        Ok(proof)
-    }
+    /// Note: CN-UPX/2 block data is public information
+    /// No privacy proof needed for block data as it's required for consensus validation
     
     /// Generate aggregated proof
     fn generate_aggregated_proof(&self, individual_proofs: &[Vec<u8>]) -> Result<Vec<u8>> {
@@ -803,9 +776,10 @@ mod tests {
         assert!(proof.is_ok());
         
         let proof = proof.unwrap();
-        assert!(proof.privacy_guarantees.reward_hidden);
-        assert!(proof.privacy_guarantees.hash_rate_hidden);
+        assert!(!proof.privacy_guarantees.reward_hidden); // Rewards are public
+        assert!(!proof.privacy_guarantees.hash_rate_hidden); // Hash rates are public
         assert!(!proof.privacy_guarantees.difficulty_hidden); // Difficulty is public
+        assert!(!proof.privacy_guarantees.block_data_hidden); // Block data is public
         assert_eq!(proof.metadata.algorithm, "cnupx2");
         assert_eq!(proof.metadata.block_height, 12345);
     }

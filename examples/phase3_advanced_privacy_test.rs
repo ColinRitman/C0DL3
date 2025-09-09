@@ -46,10 +46,11 @@ fn main() {
     println!("\n4. Testing CN-UPX/2 Mining Privacy...");
     println!("   ✅ CN-UPX/2: Fuego's mining algorithm");
     println!("   ✅ CN-UPX/2: Merge mining compatibility");
-    println!("   ✅ CN-UPX/2: Mining rewards privacy");
-    println!("   ✅ CN-UPX/2: Hash rate privacy");
+    println!("   ✅ CN-UPX/2: Mining rewards public (gas fees)");
+    println!("   ✅ CN-UPX/2: Hash rate public (mining pools)");
     println!("   ✅ CN-UPX/2: Difficulty public (required for mining)");
-    println!("   ✅ CN-UPX/2: Block data privacy");
+    println!("   ✅ CN-UPX/2: Block data public (consensus validation)");
+    println!("   ✅ CN-UPX/2: Miner identity private (privacy protection)");
     
     // Test 5: Privacy Aggregation Testing
     println!("\n5. Testing Privacy Aggregation...");
@@ -99,9 +100,11 @@ fn main() {
     println!("\n9. Testing Privacy Guarantees...");
     let guarantees = [
         ("Cross-chain amounts hidden", true),
-        ("Mining rewards hidden", true),
-        ("Hash rates hidden", true),
+        ("Mining rewards public (gas fees)", true),
+        ("Hash rates public (mining pools)", true),
         ("Difficulty public (required for mining)", true),
+        ("Block data public (consensus validation)", true),
+        ("Miner identity hidden", true),
         ("Bridge state hidden", true),
         ("Recursion process hidden", true),
         ("Aggregation process hidden", true),
