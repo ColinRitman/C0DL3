@@ -25,6 +25,7 @@ pub mod production_cross_chain_privacy;
 pub mod production_privacy_monitoring;
 pub mod production_performance_optimization;
 pub mod production_deployment_prep;
+pub mod phase4_performance_optimization;
 
 #[cfg(test)]
 mod tests;
@@ -300,3 +301,16 @@ impl PrivacyEngine {
         &self.privacy_flags
     }
 }
+
+// Phase 4: Performance Optimization exports
+pub use phase4_performance_optimization::{
+    PerformanceOptimizationManager,
+    CachedProof,
+    ProofType,
+    ParallelProcessingPool,
+    PerformanceMetrics,
+    OptimizationStrategy,
+    CacheConfiguration,
+    CacheStatistics,
+    MemoryOptimizationResult,
+};

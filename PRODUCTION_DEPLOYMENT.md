@@ -28,7 +28,30 @@
 - **Dual Mining Support**: Fuego miners can mine both chains
 - **Cross-Chain ZK Proofs**: Unified proof system
 - **Merge Mining**: Every 60 seconds
-- **AuxPoW Integration**: Full auxiliary proof-of-work support
+- **Fuego-Only Focus**: Bitcoin AuxPoW removed for cleaner architecture
+
+## 🌉 **HEAT Token Bridging Architecture**
+
+### **✅ Bridging Strategy: ETH L1 → zkSync L2 → C0DL3**
+- **L1 Bridge**: Uses zkSync's proven Ethereum L1 bridge
+- **L2 Integration**: HEAT tokens flow through zkSync L2
+- **Hyperchain Bridge**: C0DL3 uses standard zkSync hyperchain bridging
+- **No Custom ETH Bridge**: Leverages existing zkSync infrastructure
+
+### **🔄 Token Flow:**
+```
+ETH L1 (HEAT Token) 
+    ↓ [zkSync Bridge - Proven Security]
+zkSync L2 (HEAT Token)
+    ↓ [Hyperchain Bridge - Standard Pattern]  
+C0DL3 Hyperchain (HEAT Token)
+```
+
+### **🎯 Benefits:**
+- **Security**: Uses battle-tested zkSync bridge security
+- **Cost Efficiency**: Single bridge hop with L2 gas optimization
+- **Maintenance**: Standard hyperchain pattern, no custom bridge code
+- **Ecosystem Integration**: Full zkSync ecosystem compatibility
 
 ## 📈 **Trading & Performance**
 

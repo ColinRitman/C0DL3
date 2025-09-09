@@ -76,3 +76,7 @@ arkworks-circuits = "0.4.20" # Zero-knowledge circuits
 arkworks-setups = "1.2.2"   # Zero-knowledge circuit setups
 arkworks-mimc = "0.3.0"     # MiMC hash function
 merlin = "3.0"              # Transcript for zero-knowledge proofs
+
+# Phase 4: Performance Optimization Dependencies
+rayon = "1.8"               # Parallel processing
+num_cpus = "1.16"           # CPU core detection
