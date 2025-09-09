@@ -320,6 +320,7 @@ pub use phase4_performance_optimization::{
 pub use xfg_winterfell_integration::{
     XfgWinterfellManager,
     VerifiedBurn,
+    VerifiedColdDeposit,
     VerificationStatus,
     YieldGenerationState,
     YieldPool,
@@ -330,4 +331,5 @@ pub use xfg_winterfell_integration::{
     SyncStatus,
     SyncResult,
     ProofType,
+    FuegoTxExtraTag,
 };

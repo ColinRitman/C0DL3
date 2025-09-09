@@ -46,6 +46,27 @@ pub struct VerifiedBurn {
     pub verification_status: VerificationStatus,
     /// COLD yield generated
     pub cold_yield_generated: u64,
+    /// Transaction extra tag (0x08)
+    pub tx_extra_tag: FuegoTxExtraTag,
+}
+
+/// Verified COLD deposit proof
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifiedColdDeposit {
+    /// Deposit transaction hash
+    pub deposit_tx_hash: String,
+    /// Fuego block height
+    pub fuego_block_height: u64,
+    /// Deposit amount in COLD
+    pub deposit_amount: u64,
+    /// Deposit timestamp
+    pub deposit_timestamp: u64,
+    /// STARK proof data
+    pub stark_proof: Vec<u8>,
+    /// Verification status
+    pub verification_status: VerificationStatus,
+    /// Transaction extra tag (0x07)
+    pub tx_extra_tag: FuegoTxExtraTag,
 }
 
 /// Verification status
@@ -157,12 +178,21 @@ pub struct CachedProof {
 /// Proof types
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ProofType {
-    /// XFG burn proof
+    /// XFG burn proof (0x08 tx_extra tag)
     XfgBurnProof,
-    /// COLD yield proof
+    /// COLD yield proof (0x07 tx_extra tag)
     ColdYieldProof,
     /// Cross-chain verification proof
     CrossChainProof,
+}
+
+/// Fuego transaction extra tags
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FuegoTxExtraTag {
+    /// COLD ($CD) deposits - 0x07
+    ColdDeposit = 0x07,
+    /// XFG burn deposits - 0x08
+    XfgBurn = 0x08,
 }
 
 /// XFG Winterfell integration metrics
@@ -247,7 +277,7 @@ impl XfgWinterfellManager {
         Ok(())
     }
 
-    /// Verify XFG burn proof using xfg-winterfell
+    /// Verify XFG burn proof using xfg-winterfell (0x08 tx_extra tag)
     pub async fn verify_xfg_burn_proof(
         &mut self,
         burn_tx_hash: &str,
@@ -314,6 +344,60 @@ impl XfgWinterfellManager {
         Ok(verified_burn)
     }
 
+    /// Verify COLD deposit proof using xfg-winterfell (0x07 tx_extra tag)
+    pub async fn verify_cold_deposit_proof(
+        &mut self,
+        deposit_tx_hash: &str,
+        fuego_block_height: u64,
+        deposit_amount: u64,
+        stark_proof_data: &[u8],
+    ) -> Result<VerifiedColdDeposit> {
+        let start_time = Instant::now();
+        
+        // Check cache first
+        let cache_key = format!("cold_deposit_{}", deposit_tx_hash);
+        if let Some(cached_proof) = self.get_cached_proof(&cache_key) {
+            if cached_proof.verification_result {
+                self.update_cache_hit_metrics();
+                return Ok(self.create_verified_cold_deposit(
+                    deposit_tx_hash,
+                    fuego_block_height,
+                    deposit_amount,
+                    stark_proof_data,
+                    VerificationStatus::Verified,
+                ));
+            }
+        }
+
+        // Verify STARK proof using xfg-winterfell
+        let verification_result = self.verify_stark_proof(stark_proof_data)?;
+        
+        let verification_status = if verification_result {
+            VerificationStatus::Verified
+        } else {
+            VerificationStatus::Failed
+        };
+
+        let verified_deposit = VerifiedColdDeposit {
+            deposit_tx_hash: deposit_tx_hash.to_string(),
+            fuego_block_height,
+            deposit_amount,
+            deposit_timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            stark_proof: stark_proof_data.to_vec(),
+            verification_status: verification_status.clone(),
+            tx_extra_tag: FuegoTxExtraTag::ColdDeposit,
+        };
+
+        // Cache the proof
+        self.cache_proof(cache_key, stark_proof_data, ProofType::ColdYieldProof, verification_result)?;
+
+        // Update metrics
+        let verification_time = start_time.elapsed();
+        self.update_verification_metrics(verification_time, verification_result);
+
+        Ok(verified_deposit)
+    }
+
     /// Verify STARK proof using xfg-winterfell library
     fn verify_stark_proof(&self, proof_data: &[u8]) -> Result<bool> {
         // In production, this would use actual xfg-winterfell verification
@@ -374,6 +458,27 @@ impl XfgWinterfellManager {
             stark_proof: stark_proof_data.to_vec(),
             verification_status: status,
             cold_yield_generated: 0, // Will be calculated separately
+            tx_extra_tag: FuegoTxExtraTag::XfgBurn,
+        }
+    }
+
+    /// Create verified COLD deposit record
+    fn create_verified_cold_deposit(
+        &self,
+        deposit_tx_hash: &str,
+        fuego_block_height: u64,
+        deposit_amount: u64,
+        stark_proof_data: &[u8],
+        status: VerificationStatus,
+    ) -> VerifiedColdDeposit {
+        VerifiedColdDeposit {
+            deposit_tx_hash: deposit_tx_hash.to_string(),
+            fuego_block_height,
+            deposit_amount,
+            deposit_timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            stark_proof: stark_proof_data.to_vec(),
+            verification_status: status,
+            tx_extra_tag: FuegoTxExtraTag::ColdDeposit,
         }
     }
 
@@ -448,10 +553,11 @@ impl XfgWinterfellManager {
         Ok(metrics.clone())
     }
 
-    /// Sync with Fuego blockchain
+    /// Sync with Fuego blockchain and process both transaction types
     pub async fn sync_with_fuego(&mut self, from_height: u64, to_height: u64) -> Result<SyncResult> {
         let start_time = Instant::now();
         let mut burns_processed = 0;
+        let mut cold_deposits_processed = 0;
         let mut blocks_processed = 0;
 
         // Simulate syncing with Fuego blockchain
@@ -459,19 +565,36 @@ impl XfgWinterfellManager {
             // Simulate processing block
             blocks_processed += 1;
             
-            // Simulate finding burn transactions (every 10th block)
+            // Simulate finding XFG burn transactions (0x08 tx_extra tag) - every 10th block
             if height % 10 == 0 {
                 burns_processed += 1;
                 
-                // Simulate verifying burn proof
+                // Simulate verifying XFG burn proof
                 let burn_tx_hash = format!("fuego_burn_{}", height);
                 let burn_amount = 1000 + (height % 10000) * 100; // Simulated burn amount
-                let stark_proof = vec![0x01, 0x02, 0x03, 0x04]; // Simulated proof
+                let stark_proof = vec![0x08, 0x02, 0x03, 0x04]; // Simulated proof with 0x08 tag
                 
                 let _verified_burn = self.verify_xfg_burn_proof(
                     &burn_tx_hash,
                     height,
                     burn_amount,
+                    &stark_proof,
+                ).await?;
+            }
+            
+            // Simulate finding COLD deposit transactions (0x07 tx_extra tag) - every 15th block
+            if height % 15 == 0 {
+                cold_deposits_processed += 1;
+                
+                // Simulate verifying COLD deposit proof
+                let deposit_tx_hash = format!("fuego_cold_deposit_{}", height);
+                let deposit_amount = 500 + (height % 5000) * 50; // Simulated deposit amount
+                let stark_proof = vec![0x07, 0x02, 0x03, 0x04]; // Simulated proof with 0x07 tag
+                
+                let _verified_deposit = self.verify_cold_deposit_proof(
+                    &deposit_tx_hash,
+                    height,
+                    deposit_amount,
                     &stark_proof,
                 ).await?;
             }
@@ -489,6 +612,7 @@ impl XfgWinterfellManager {
         Ok(SyncResult {
             blocks_processed,
             burns_processed,
+            cold_deposits_processed,
             sync_time,
             from_height,
             to_height,
@@ -501,6 +625,7 @@ impl XfgWinterfellManager {
 pub struct SyncResult {
     pub blocks_processed: u64,
     pub burns_processed: u64,
+    pub cold_deposits_processed: u64,
     pub sync_time: Duration,
     pub from_height: u64,
     pub to_height: u64,
