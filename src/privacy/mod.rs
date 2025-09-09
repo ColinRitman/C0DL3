@@ -12,6 +12,7 @@ pub mod timing_privacy;
 pub mod production_stark_proofs;
 pub mod production_stark_core;
 pub mod transaction_privacy_starks;
+pub mod advanced_privacy_starks;
 pub mod advanced_privacy_features;
 pub mod performance_optimization;
 pub mod security_audit_prep;
@@ -66,6 +67,27 @@ pub use transaction_privacy_starks::{
     PrivacyGuarantees,
     PrivacyMetrics,
     TransactionPrivacyMetadata,
+};
+
+// Advanced Privacy STARK exports
+pub use advanced_privacy_starks::{
+    AdvancedPrivacyStarkSystem,
+    AdvancedPrivacyConfig,
+    AdvancedPrivacyMetrics,
+    AdvancedPrivacyProofType,
+    CrossChainPrivacyProof,
+    CrossChainPrivacyGuarantees,
+    CrossChainPrivacyMetadata,
+    MiningPrivacyProof,
+    MiningPrivacyGuarantees,
+    MiningPrivacyMetadata,
+    PrivacyAggregationProof,
+    AggregationMetadata,
+    AggregationPrivacyGuarantees,
+    RecursivePrivacyProof,
+    RecursionMetadata,
+    RecursionPrivacyGuarantees,
+    PrivacyProofRequest,
 };
 pub use amount_commitments::{
     AmountCommitment,
