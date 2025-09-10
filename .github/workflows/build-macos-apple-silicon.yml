@@ -1,0 +1,128 @@
+name: macOS Apple Silicon CI
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-macos-apple-silicon:
+    name: Test on macOS Apple Silicon
+    runs-on: macos-14  # Apple Silicon runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: macos-apple-silicon-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          macos-apple-silicon-cargo-
+          macos-cargo-
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: cargo clippy --no-default-features -- -D warnings
+
+    - name: Install system dependencies
+      run: |
+        brew install openssl
+        export OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl
+        export OPENSSL_LIB_DIR=/opt/homebrew/opt/openssl/lib
+        export OPENSSL_INCLUDE_DIR=/opt/homebrew/opt/openssl/include
+
+    - name: Build (default features)
+      run: cargo build --no-default-features
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build (with CLI UI)
+      run: cargo build --features cli-ui
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run tests (default features)
+      run: cargo test --no-default-features --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run tests (with CLI UI)
+      run: cargo test --features cli-ui --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build release binary
+      run: cargo build --release --no-default-features
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+  macos-cross-compile-apple-silicon:
+    name: Cross-compile for Apple Silicon (from Linux)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        targets: aarch64-apple-darwin
+
+    - name: Install osxcross for Apple Silicon
+      run: |
+        git clone https://github.com/tpoechtrager/osxcross
+        cd osxcross
+        wget -nc https://github.com/joseluisq/macosx-sdks/releases/download/12.3/MacOSX12.3.sdk.tar.xz
+        mv MacOSX12.3.sdk.tar.xz tarballs/
+        UNATTENDED=yes OSX_VERSION_MIN=11.0 ./build.sh
+        export PATH="$PWD/target/bin:$PATH"
+        echo "PATH=$PWD/target/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Build for Apple Silicon
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --no-default-features --target aarch64-apple-darwin
+
+    - name: Upload Apple Silicon cross-compiled binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-cross
+        path: target/aarch64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn

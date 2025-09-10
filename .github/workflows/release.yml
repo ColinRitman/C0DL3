@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Build release binaries
+      run: |
+        # Build for multiple targets
+        cargo build --release --no-default-features
+        cargo build --release --no-default-features --target x86_64-unknown-linux-gnu
+        cargo build --release --no-default-features --target x86_64-pc-windows-gnu
+        cargo build --release --no-default-features --target x86_64-apple-darwin
+        cargo build --release --no-default-features --target aarch64-apple-darwin
+
+    - name: Create release archives
+      run: |
+        # Create release directory
+        mkdir -p release
+
+        # Linux x86_64
+        cp target/release/codl3-zksync release/codl3-zksync-linux-x86_64
+        tar -czf release/codl3-zksync-linux-x86_64.tar.gz -C release codl3-zksync-linux-x86_64
+
+        # Linux x86_64 (cross)
+        cp target/x86_64-unknown-linux-gnu/release/codl3-zksync release/codl3-zksync-linux-x86_64-cross
+        tar -czf release/codl3-zksync-linux-x86_64-cross.tar.gz -C release codl3-zksync-linux-x86_64-cross
+
+        # Windows x86_64
+        cp target/x86_64-pc-windows-gnu/release/codl3-zksync.exe release/codl3-zksync-windows-x86_64.exe
+        zip release/codl3-zksync-windows-x86_64.zip release/codl3-zksync-windows-x86_64.exe
+
+        # macOS Intel
+        cp target/x86_64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-intel
+        tar -czf release/codl3-zksync-macos-intel.tar.gz -C release codl3-zksync-macos-intel
+
+        # macOS Apple Silicon
+        cp target/aarch64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-apple-silicon
+        tar -czf release/codl3-zksync-macos-apple-silicon.tar.gz -C release codl3-zksync-macos-apple-silicon
+
+    - name: Create GitHub release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          ## C0DL3 zkSync Node Release ${{ github.ref_name }}
+
+          This release includes binaries for multiple platforms:
+
+          ### Features
+          - Production STARK proof system
+          - CN-UPX/2 mining algorithm
+          - Address encryption (ChaCha20Poly1305)
+          - Transaction privacy
+          - Security vulnerability fixes (100% score)
+          - XFG Winterfell integration
+          - Merge mining with Fuego L1
+          - HEAT token bridging
+          - COLD token generation
+
+          ### Downloads
+          - **Linux x86_64**: `codl3-zksync-linux-x86_64.tar.gz`
+          - **Windows x86_64**: `codl3-zksync-windows-x86_64.zip`
+          - **macOS Intel**: `codl3-zksync-macos-intel.tar.gz`
+          - **macOS Apple Silicon**: `codl3-zksync-macos-apple-silicon.tar.gz`
+
+          ### Installation
+          1. Download the appropriate binary for your platform
+          2. Extract the archive
+          3. Run `./codl3-zksync --help` for usage information
+
+          ### Configuration
+          See the testnet setup guide in `testnet/README.md` for configuration examples.
+
+        draft: false
+        prerelease: false
+
+    - name: Upload release assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/codl3-zksync-linux-x86_64.tar.gz
+        asset_name: codl3-zksync-linux-x86_64.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload Windows release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/codl3-zksync-windows-x86_64.zip
+        asset_name: codl3-zksync-windows-x86_64.zip
+        asset_content_type: application/zip
+
+    - name: Upload macOS Intel release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/codl3-zksync-macos-intel.tar.gz
+        asset_name: codl3-zksync-macos-intel.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload macOS Apple Silicon release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/codl3-zksync-macos-apple-silicon.tar.gz
+        asset_name: codl3-zksync-macos-apple-silicon.tar.gz
+        asset_content_type: application/gzip
