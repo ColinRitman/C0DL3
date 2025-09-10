@@ -62,24 +62,21 @@ pub use production_stark_core::{
     ConstraintType,
 };
 
-// Transaction Privacy STARK exports
+// Transaction Privacy STARK exports (avoid re-exporting names already in scope)
 pub use transaction_privacy_starks::{
     TransactionPrivacyStarkSystem,
     TransactionPrivacyProof,
     TransactionPrivacyConfig,
     TransactionPrivacyProofType,
-    PrivacyGuarantees,
-    PrivacyMetrics,
     TransactionPrivacyMetadata,
 };
 
-// Advanced Privacy STARK exports
+// Advanced Privacy STARK exports (trim duplicates)
 pub use advanced_privacy_starks::{
     AdvancedPrivacyStarkSystem,
     AdvancedPrivacyConfig,
     AdvancedPrivacyMetrics,
     AdvancedPrivacyProofType,
-    CrossChainPrivacyProof,
     CrossChainPrivacyGuarantees,
     CrossChainPrivacyMetadata,
     MiningPrivacyProof,
@@ -93,6 +90,7 @@ pub use advanced_privacy_starks::{
     RecursionPrivacyGuarantees,
     PrivacyProofRequest,
 };
+
 pub use amount_commitments::{
     AmountCommitment,
     RangeProof,
@@ -133,16 +131,15 @@ pub use advanced_privacy_features::{
     ComplianceTracker,
 };
 
+// Performance exports (drop types already exported elsewhere)
 pub use performance_optimization::{
     OptimizedPrivacySystem,
     ProofCache,
-    CachedProof,
     CacheStats,
     BatchManager,
     ProcessingBatch,
     BatchStatus,
     BatchStats,
-    PerformanceMetrics,
     PerformanceBenchmark,
     BenchmarkResult,
 };
@@ -318,7 +315,7 @@ pub use phase4_performance_optimization::{
     MemoryOptimizationResult,
 };
 
-// Phase 5: Security Audit exports
+// Phase 5: Security Audit exports (avoid duplicates)
 pub use phase5_security_audit::{
     SecurityAuditManager,
     VulnerabilityReport,
@@ -330,17 +327,12 @@ pub use phase5_security_audit::{
     ComplianceStatus,
     ComplianceRequirement,
     ComplianceStatusType,
-    SecurityMetrics,
     ThreatIntelligence,
-    AttackVector,
-    ThreatActor,
-    ThreatActorType,
-    ActivityLevel,
     SecurityAdvisory,
     AuditReport,
 };
 
-// Phase 6: Production Deployment exports
+// Phase 6: Production Deployment exports (drop overlapping items)
 pub use phase6_production_deployment::{
     ProductionDeploymentManager,
     DeploymentConfig,
@@ -363,17 +355,7 @@ pub use phase6_production_deployment::{
     LogFormat,
     LogDestination,
     AlertingConfig,
-    AlertChannel,
     ChannelType,
-    AlertRule,
-    AlertSeverity,
-    DashboardConfig,
-    DashboardWidget,
-    WidgetType,
-    SecurityConfig,
-    SslConfig,
-    FirewallConfig,
-    AccessControl,
     InfrastructureStatus,
     InfrastructureHealth,
     ComponentStatus,
@@ -394,7 +376,7 @@ pub use phase6_production_deployment::{
     DeploymentResult,
 };
 
-// XFG Winterfell Integration exports
+// XFG Winterfell Integration exports (avoid duplicate ProofType)
 pub use xfg_winterfell_integration::{
     XfgWinterfellManager,
     VerifiedBurn,

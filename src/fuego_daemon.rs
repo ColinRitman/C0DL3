@@ -425,7 +425,7 @@ impl FuegoDaemon {
 // Integration with C0DL3 unified daemon
 impl FuegoDaemon {
     /// Create Fuego daemon from C0DL3 merge mining config
-    pub fn from_merge_mining_config(merge_config: &crate::MergeMiningConfig) -> Self {
+    pub fn from_merge_mining_config(merge_config: &super::MergeMiningConfig) -> Self {
         let config = FuegoDaemonConfig {
             fuego_binary_path: merge_config.fuego_binary_path.clone(),
             fuego_data_dir: merge_config.fuego_data_dir.clone(),

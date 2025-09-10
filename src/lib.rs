@@ -3,7 +3,9 @@
 
 pub mod privacy;
 pub mod mining;
-pub mod fuego_daemon;
+// Remove fuego_daemon from lib to avoid referencing bin-only types
+// pub mod fuego_daemon;
+
 #[cfg(feature = "cli-ui")]
 pub mod unified_cli;
 #[cfg(feature = "cli-ui")]
@@ -14,6 +16,9 @@ pub mod visual_cli;
 pub mod simple_visual_cli;
 #[cfg(feature = "cli-ui")]
 pub mod cli_interface;
+
+// Expose security utilities to library users
+pub mod security;
 
 // Re-export main privacy components
 pub use privacy::*;
