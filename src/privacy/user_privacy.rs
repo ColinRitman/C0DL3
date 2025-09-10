@@ -106,7 +106,7 @@ impl UserPrivacyManager {
     /// Create private transaction with user-level privacy (always enabled)
     /// Privacy is always enabled at maximum level (100) - no check needed
     pub fn create_private_transaction(
-        &self,
+        &mut self,
         sender: &str,
         recipient: &str,
         amount: u64,

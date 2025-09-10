@@ -580,18 +580,24 @@ impl PerformanceOptimizationManager {
     /// Optimize cache size
     fn optimize_cache_size(&self) -> Result<()> {
         let mut cache = self.proof_cache.write().map_err(|_| anyhow!("Cache lock failed"))?;
-        
+
         // Remove low-priority entries if cache is too large
         if cache.len() > self.cache_config.max_cache_size {
-            let mut entries: Vec<_> = cache.iter().collect();
-            entries.sort_by_key(|(_, proof)| proof.priority);
-            
-            let to_remove = cache.len() - self.cache_config.max_cache_size;
-            for (key, _) in entries.iter().take(to_remove) {
-                cache.remove(*key);
+            // Collect keys to remove first (immutable borrow)
+            let keys_to_remove: Vec<String> = {
+                let mut entries: Vec<_> = cache.iter().collect();
+                entries.sort_by_key(|(_, proof)| proof.priority);
+
+                let to_remove = cache.len() - self.cache_config.max_cache_size;
+                entries.iter().take(to_remove).map(|(key, _)| (*key).clone()).collect()
+            };
+
+            // Now remove the keys (mutable borrow)
+            for key in keys_to_remove {
+                cache.remove(&key);
             }
         }
-        
+
         Ok(())
     }
 }

@@ -1311,15 +1311,15 @@ impl C0DL3ZkSyncNode {
     /// Create private transaction with user-level privacy
     /// Privacy is always enabled at maximum level (100) - no options needed
     pub async fn create_private_transaction(
-        &self,
+        &mut self,
         sender: &str,
         recipient: &str,
         amount: u64,
         sender_balance: u64,
     ) -> Result<privacy::PrivateTransaction> {
-        if let Some(ref privacy_manager) = self.privacy_manager {
+        if let Some(ref mut privacy_manager) = self.privacy_manager {
             let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-            
+
             privacy_manager.create_private_transaction(
                 sender,
                 recipient,

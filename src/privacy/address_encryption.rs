@@ -163,7 +163,7 @@ impl AddressEncryption {
     }
     
     /// Generate cryptographically secure nonce (legacy method)
-    fn generate_nonce(&self) -> Result<[u8; 12]> {
+    fn generate_nonce(&mut self) -> Result<[u8; 12]> {
         self.generate_secure_nonce()
     }
     
