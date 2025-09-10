@@ -307,7 +307,6 @@ impl PrivacyEngine {
 pub use phase4_performance_optimization::{
     PerformanceOptimizationManager,
     CachedProof,
-    ProofType,
     ParallelProcessingPool,
     OptimizationStrategy,
     CacheConfiguration,
@@ -385,7 +384,6 @@ pub use xfg_winterfell_integration::{
     PendingL1Mint,
     L1MintStatus,
     MessageBridgeStatus,
-    BridgeStatus,
     TokenType,
     VerificationStatus,
     YieldGenerationState,

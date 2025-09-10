@@ -130,7 +130,7 @@ impl AddressEncryption {
     // Private helper methods
     
     /// Encrypt address with specified type
-    fn encrypt_address(&self, address: &str, address_type: &str) -> Result<EncryptedAddress> {
+    fn encrypt_address(&mut self, address: &str, address_type: &str) -> Result<EncryptedAddress> {
         // Validate address using RPC validator
         self.rpc_validator.validate_address(address)?;
         
