@@ -58,12 +58,12 @@ impl AddressEncryption {
     }
     
     /// Encrypt sender address (protects user identity)
-    pub fn encrypt_sender(&self, sender: &str) -> Result<EncryptedAddress> {
+    pub fn encrypt_sender(&mut self, sender: &str) -> Result<EncryptedAddress> {
         self.encrypt_address(sender, "sender")
     }
     
     /// Encrypt recipient address (protects user identity)
-    pub fn encrypt_recipient(&self, recipient: &str) -> Result<EncryptedAddress> {
+    pub fn encrypt_recipient(&mut self, recipient: &str) -> Result<EncryptedAddress> {
         self.encrypt_address(recipient, "recipient")
     }
     

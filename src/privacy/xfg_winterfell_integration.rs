@@ -230,7 +230,7 @@ pub enum PoolStatus {
 }
 
 /// Fuego blockchain connection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FuegoConnection {
     /// Fuego RPC URL
     pub rpc_url: String,

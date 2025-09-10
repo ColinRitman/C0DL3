@@ -143,16 +143,7 @@ impl ProductionStarkProofSystem {
         let fri_options = FriOptions::new(32, 4, 8); // blowup_factor, folding_factor, remainder_max_degree
         
         // Configure proof options for production
-        let proof_options = ProofOptions::new(
-            42, // Extension factor
-            4,  // Grinding factor
-            2,  // Hash function
-            winter_air::FieldExtension::None, // Field extension
-            32, // FRI folding factor
-            1,  // Batching method
-            winter_air::BatchingMethod::Serial, // Batching method
-            winter_air::BatchingMethod::Serial, // Batching method
-        );
+        let proof_options = ProofOptions::default();
         
         // Initialize field elements
         let field_elements = Vec::new();

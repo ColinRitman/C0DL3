@@ -448,7 +448,7 @@ impl PerformanceOptimizationManager {
             created_at: Instant::now(),
             last_accessed: Instant::now(),
             access_count: 1,
-            proof_type,
+            proof_type: proof_type.clone(),
             priority: self.get_proof_priority(&proof_type),
         };
         
