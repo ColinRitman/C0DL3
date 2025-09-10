@@ -31,7 +31,7 @@ pub struct PerformanceOptimizationManager {
 }
 
 /// Cached proof with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CachedProof {
     /// Proof data
     pub proof_data: Vec<u8>,
@@ -65,7 +65,7 @@ pub enum ProofType {
 }
 
 /// Parallel processing pool configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ParallelProcessingPool {
     /// Number of worker threads
     pub worker_threads: usize,
@@ -80,7 +80,7 @@ pub struct ParallelProcessingPool {
 }
 
 /// Processing task
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ProcessingTask {
     /// Task ID
     pub task_id: String,
@@ -112,7 +112,7 @@ pub enum TaskType {
 }
 
 /// Pool statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PoolStatistics {
     /// Total tasks processed
     pub total_tasks_processed: u64,
@@ -306,7 +306,7 @@ impl PerformanceOptimizationManager {
         let start_time = Instant::now();
         
         // Generate cache key
-        let cache_key = self.generate_cache_key(proof_type, input_data);
+        let cache_key = self.generate_cache_key(proof_type.clone(), input_data);
         
         // Check cache first
         if let Some(cached_proof) = self.get_cached_proof(&cache_key) {
@@ -316,7 +316,7 @@ impl PerformanceOptimizationManager {
         }
         
         // Generate new proof
-        let proof_data = self.generate_proof_parallel(proof_type, input_data, privacy_manager)?;
+        let proof_data = self.generate_proof_parallel(proof_type.clone(), input_data, privacy_manager)?;
         
         // Cache the proof
         self.cache_proof(cache_key, proof_data.clone(), proof_type)?;

@@ -464,7 +464,7 @@ impl TransactionPrivacyStarkSystem {
     }
     
     /// Verify transaction privacy proof
-    pub fn verify_transaction_privacy_proof(&self, proof: &TransactionPrivacyProof) -> Result<bool> {
+    pub fn verify_transaction_privacy_proof(&mut self, proof: &TransactionPrivacyProof) -> Result<bool> {
         let start_time = std::time::Instant::now();
         
         // Verify core STARK proof

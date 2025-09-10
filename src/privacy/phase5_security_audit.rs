@@ -314,6 +314,7 @@ impl SecurityAuditManager {
                 next_audit_date: 0,
             })),
             security_metrics: Arc::new(Mutex::new(SecurityMetrics {
+                fixed_vulnerabilities: 0, 
                 total_vulnerabilities: 0,
                 critical_vulnerabilities: 0,
                 high_vulnerabilities: 0,
@@ -770,7 +771,7 @@ impl SecurityAuditManager {
         // Bonus points for fixing all vulnerabilities
         let fix_bonus = metrics.fixed_vulnerabilities * 2; // 2 points per fixed vulnerability
         
-        ((vulnerability_score + compliance_score + fix_bonus) / 2).min(100) as u8
+        (((vulnerability_score as u32 + compliance_score as u32 + fix_bonus) / 2).min(100)) as u8
     }
 
     /// Generate security recommendations

@@ -9,6 +9,14 @@ description = "CODL3 - zkSync Hyperchains Implementation"
 name = "codl3-zksync"
 path = "src/main.rs"
 
+[features]
+# Minimal default features for server/node only build
+default = []
+# Enable terminal UI/visual CLI modules
+cli-ui = []
+# Enable heavy/experimental privacy modules if needed
+exp-privacy = []
+
 [dependencies]
 anyhow = "1.0.99"
 axum = { version = "0.8.4", features = ["macros"] }
@@ -31,31 +39,31 @@ reqwest = { version = "0.12", features = ["json"] }
 ethers = { version = "2.0", features = ["rustls"] }
 
 # Advanced Terminal UI Dependencies for Professional UX
-crossterm = "0.27"
-ratatui = "0.24"
+crossterm = { version = "0.27", optional = true }
+ratatui = { version = "0.24", default-features = false, optional = true }
 chrono = { version = "0.4", features = ["serde"] }
 indicatif = "0.17"
 console = "0.15"
-dialoguer = "0.11"
+dialoguer = { version = "0.11", optional = true }
 colored = "2.0"
 spinners = "4.1"
-terminal_size = "0.1"
-rustyline = "12.0"
+terminal_size = { version = "0.1", optional = true }
+rustyline = { version = "12.0", optional = true }
 
 # Elite-Level Privacy and Zero-Knowledge Dependencies
 # Production-ready cryptography for user-level privacy
-bulletproofs = "4.0"       # Range proofs for amount privacy
-chacha20poly1305 = "0.10"  # Address/timing encryption (AEAD)
-curve25519-dalek = "4.0"   # Elliptic curves for commitments
-rand = "0.8"               # Cryptographically secure random number generation
-thiserror = "1.0"          # Error handling for privacy operations
+bulletproofs = { version = "4.0", optional = true }
+chacha20poly1305 = "0.10"
+curve25519-dalek = { version = "4.0", optional = true }
+rand = "0.8"
+thiserror = "1.0"
 
 # CN-UPX/2 Mining Algorithm Dependencies
 # CryptoNight UPX/2 implementation for Fuego compatibility
-aes = "0.8"                # AES encryption for CryptoNight
-blake3 = "1.5"             # Blake3 hash function
-keccak = "0.1"             # Keccak hash function
-ripemd = "0.1"             # RIPEMD hash function
+aes = "0.8"
+blake3 = "1.5"
+keccak = "0.1"
+ripemd = "0.1"
 
 # Production STARK Proof Systems
 # Boojum STARK prover (zkSync's production STARK system)
@@ -63,23 +71,40 @@ ripemd = "0.1"             # RIPEMD hash function
 # boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
 
 # Winter-crypto STARK implementation (production-ready)
-winter-crypto = "0.13.1"     # Production STARK implementation
-winter-math = "0.13.1"       # Mathematical primitives for STARKs
-winter-utils = "0.13.1"      # STARK utilities
-winter-fri = "0.13.1"        # FRI protocol for STARKs
-winter-air = "0.13.1"        # AIR components for STARK prover/verifier
+winter-crypto = "0.13.1"
+winter-math = "0.13.1"
+winter-utils = "0.13.1"
+winter-fri = "0.13.1"
+winter-air = "0.13.1"
 
 # Advanced Cryptographic Libraries
 # Arkworks ecosystem for advanced cryptographic primitives
-arkworks-gadgets = "0.4.20"  # Zero-knowledge gadgets
-arkworks-circuits = "0.4.20" # Zero-knowledge circuits
-arkworks-setups = "1.2.2"   # Zero-knowledge circuit setups
-arkworks-mimc = "0.3.0"     # MiMC hash function
-merlin = "3.0"              # Transcript for zero-knowledge proofs
+arkworks-gadgets = { version = "0.4.20", optional = true }
+arkworks-circuits = { version = "0.4.20", optional = true }
+arkworks-setups = { version = "1.2.2", optional = true }
+arkworks-mimc = { version = "0.3.0", optional = true }
+merlin = "3.0"
 
 # Phase 4: Performance Optimization Dependencies
-rayon = "1.8"               # Parallel processing
-num_cpus = "1.16"           # CPU core detection
+rayon = "1.8"
+num_cpus = "1.16"
 
 # XFG Winterfell STARK Integration
 xfg-stark = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
+
+[target.'cfg(feature = "cli-ui")'.dependencies]
+# Pull UI crates only when cli-ui feature is enabled
+crossterm = { version = "0.27" }
+ratatui = { version = "0.24", default-features = false }
+dialoguer = { version = "0.11" }
+terminal_size = { version = "0.1" }
+rustyline = { version = "12.0" }
+
+[target.'cfg(feature = "exp-privacy")'.dependencies]
+# Heavy zk libraries gated
+bulletproofs = { version = "4.0" }
+curve25519-dalek = { version = "4.0" }
+arkworks-gadgets = { version = "0.4.20" }
+arkworks-circuits = { version = "0.4.20" }
+arkworks-setups = { version = "1.2.2" }
+arkworks-mimc = { version = "0.3.0" }

@@ -243,6 +243,7 @@ impl UnifiedCliDaemon {
         let running = self.running.clone();
         let start_time = self.start_time;
 
+        #[cfg(feature = "cli-ui")]
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(config.status_refresh_interval));
             
@@ -445,6 +446,7 @@ impl UnifiedCliDaemon {
         let status = self.status.clone();
         let running = self.running.clone();
         
+        #[cfg(feature = "cli-ui")]
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(10));
             

@@ -37,7 +37,7 @@ use rustyline::{Cmd, CompletionType, Config, Context, EditMode, EditorMode, KeyE
 
 use crate::unified_cli::{UnifiedCliDaemon, UnifiedCliConfig, SystemStatus};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum VisualCliCommand {
     Status,
     MiningStart,
@@ -57,7 +57,7 @@ pub enum VisualCliCommand {
     Unknown(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum AppState {
     Main,
     Mining,
@@ -67,7 +67,7 @@ pub enum AppState {
     Help,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VisualTheme {
     pub primary: Color,
     pub secondary: Color,

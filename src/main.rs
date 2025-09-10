@@ -12,11 +12,16 @@ mod fuego_units;
 mod privacy;
 mod mining;
 mod security;
-// mod unified_cli;
-// mod cli_interface;
-// mod visual_cli;
-// mod enhanced_cli;
-// mod simple_visual_cli;
+#[cfg(feature = "cli-ui")]
+mod unified_cli;
+#[cfg(feature = "cli-ui")]
+mod cli_interface;
+#[cfg(feature = "cli-ui")]
+mod visual_cli;
+#[cfg(feature = "cli-ui")]
+mod enhanced_cli;
+#[cfg(feature = "cli-ui")]
+mod simple_visual_cli;
 
 use fuego_daemon::FuegoDaemon;
 // use unified_cli::{UnifiedCliDaemon, UnifiedCliConfig};

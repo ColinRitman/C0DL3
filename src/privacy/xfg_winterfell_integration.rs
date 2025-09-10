@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use sha2::Digest;
 
 // Import xfg-winterfell types (when available)
 // use xfg_winterfell::types::{
@@ -242,7 +243,7 @@ pub struct FuegoConnection {
 }
 
 /// Fuego connection metrics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FuegoConnectionMetrics {
     /// Total blocks processed
     pub blocks_processed: u64,
@@ -255,7 +256,7 @@ pub struct FuegoConnectionMetrics {
 }
 
 /// Cached STARK proof
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CachedProof {
     /// Proof data
     pub proof_data: Vec<u8>,
@@ -421,6 +422,7 @@ impl XfgWinterfellManager {
         };
 
         let verified_burn = VerifiedBurn {
+            tx_extra_tag: FuegoTxExtraTag::XfgBurn, 
             burn_tx_hash: burn_tx_hash.to_string(),
             fuego_block_height,
             burn_amount,
