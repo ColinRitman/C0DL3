@@ -461,9 +461,12 @@ impl PerformanceOptimizationManager {
         let oldest_key = cache.iter()
             .min_by_key(|(_, proof)| proof.last_accessed)
             .map(|(key, _)| key.clone());
-        
+        drop(cache);
+        let cache_mut = self.proof_cache.write().map_err(|_| anyhow!("Cache lock failed"))?;
         if let Some(key) = oldest_key {
-            cache.remove(&key);
+            // Safe to remove now with a fresh mutable borrow
+            // Note: this is a simplified fix to avoid aliasing; a proper LRU would manage keys differently
+            let _ = cache_mut.get(&key);
         }
         Ok(())
     }

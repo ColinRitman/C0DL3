@@ -111,11 +111,12 @@ pub use timing_privacy::{
 };
 
 // Production-grade privacy exports
-pub use production_stark_proofs::{
-    ProductionStarkProofSystem,
-    ProductionStarkProof,
-    ProofMetadata,
-};
+// pub use production_stark_proofs::{
+//     ProductionStarkProofSystem,
+//     ProductionStarkProof,
+//     ProofMetadata,
+// };
+
 
 pub use advanced_privacy_features::{
     AdvancedPrivacyFeatures,
@@ -308,7 +309,6 @@ pub use phase4_performance_optimization::{
     CachedProof,
     ProofType,
     ParallelProcessingPool,
-    PerformanceMetrics,
     OptimizationStrategy,
     CacheConfiguration,
     CacheStatistics,
@@ -396,6 +396,5 @@ pub use xfg_winterfell_integration::{
     XfgWinterfellMetrics,
     SyncStatus,
     SyncResult,
-    ProofType,
     FuegoTxExtraTag,
 };

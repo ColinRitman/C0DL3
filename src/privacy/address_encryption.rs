@@ -158,7 +158,7 @@ impl AddressEncryption {
     }
     
     /// Generate cryptographically secure nonce using secure RNG
-    fn generate_secure_nonce(&self) -> Result<[u8; 12]> {
+    fn generate_secure_nonce(&mut self) -> Result<[u8; 12]> {
         self.secure_rng.generate_nonce()
     }
     

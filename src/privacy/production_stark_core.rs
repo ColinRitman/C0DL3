@@ -150,8 +150,8 @@ impl ProductionStarkProofSystem {
             winter_air::FieldExtension::None, // Field extension
             32, // FRI folding factor
             1,  // Batching method
-            winter_air::BatchingMethod::Rows, // Batching method
-            winter_air::BatchingMethod::Rows, // Batching method
+            winter_air::BatchingMethod::Serial, // Batching method
+            winter_air::BatchingMethod::Serial, // Batching method
         );
         
         // Initialize field elements
