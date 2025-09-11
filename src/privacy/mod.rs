@@ -29,6 +29,7 @@ pub mod phase4_performance_optimization;
 pub mod phase5_security_audit;
 pub mod phase6_production_deployment;
 pub mod xfg_winterfell_integration;
+pub mod bidirectional_bridge;
 
 #[cfg(test)]
 mod tests;
@@ -395,4 +396,17 @@ pub use xfg_winterfell_integration::{
     SyncStatus,
     SyncResult,
     FuegoTxExtraTag,
+};
+
+// Bidirectional Bridge exports
+pub use bidirectional_bridge::{
+    BidirectionalBridgeManager,
+    C0dl3ToFuegoBridge,
+    FuegoToC0dl3Bridge,
+    BridgeSyncState,
+    C0dl3Event,
+    C0dl3EventType,
+    FuegoRpcClient,
+    EventBatchConfig,
+    BidirectionalMetrics,
 };

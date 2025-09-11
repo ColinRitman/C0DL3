@@ -1074,7 +1074,7 @@ impl C0DL3ZkSyncNode {
         info!("Starting RPC server on {}:{}", self.config.rpc.host, self.config.rpc.port);
         
         let app_state = AppState {
-            node: Arc::new(self.clone()),
+            node: Arc::new(Mutex::new(self.clone())),
         };
 
         let cors = CorsLayer::new()
@@ -1425,7 +1425,7 @@ impl C0DL3ZkSyncNode {
 // RPC Handlers and App State
 #[derive(Clone)]
 struct AppState {
-    node: Arc<C0DL3ZkSyncNode>,
+    node: Arc<Mutex<C0DL3ZkSyncNode>>,
 }
 
 async fn root() -> &'static str {
@@ -1433,15 +1433,23 @@ async fn root() -> &'static str {
 }
 
 async fn health(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node_state = {
+        let node = state.node.lock().unwrap();
+        node.get_state()
+    };
     Json(json!({
         "status": "healthy",
         "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-        "node_state": state.node.get_state()
+        "node_state": node_state
     }))
 }
 
 async fn get_stats(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.node.get_network_stats().await {
+    let stats_result = {
+        let node = state.node.lock().unwrap();
+        node.get_network_stats().await
+    };
+    match stats_result {
         Ok(stats) => Ok(Json(stats)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -1481,7 +1489,11 @@ async fn submit_transaction(
     State(state): State<AppState>,
     Json(tx): Json<Transaction>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.node.add_transaction(tx).await {
+    let result = {
+        let node = state.node.lock().unwrap();
+        node.add_transaction(tx).await
+    };
+    match result {
         Ok(_) => Ok(Json(json!({
             "status": "success",
             "message": "Transaction submitted successfully"
@@ -1491,18 +1503,20 @@ async fn submit_transaction(
 }
 
 async fn get_hyperchain_info(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
     Json(json!({
-        "chain_id": state.node.hyperchain_config.chain_id,
-        "name": state.node.hyperchain_config.name,
-        "rpc_url": state.node.hyperchain_config.rpc_url,
-        "bridge_address": state.node.hyperchain_config.bridge_address,
-        "validator_address": state.node.hyperchain_config.validator_address,
-        "l1_contract_address": state.node.hyperchain_config.l1_contract_address
+        "chain_id": node.hyperchain_config.chain_id,
+        "name": node.hyperchain_config.name,
+        "rpc_url": node.hyperchain_config.rpc_url,
+        "bridge_address": node.hyperchain_config.bridge_address,
+        "validator_address": node.hyperchain_config.validator_address,
+        "l1_contract_address": node.hyperchain_config.l1_contract_address
     }))
 }
 
 async fn get_l1_batches(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let batches_guard = state.node.l1_batches.lock().unwrap();
+    let node = state.node.lock().unwrap();
+    let batches_guard = node.l1_batches.lock().unwrap();
     let batches: Vec<_> = batches_guard.values().collect();
     Json(json!({
         "batches": batches,
@@ -1510,14 +1524,17 @@ async fn get_l1_batches(State(state): State<AppState>) -> Json<serde_json::Value
     }))
 }
 
-#[axum::debug_handler]
 async fn get_merge_mining_stats(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let stats = state.node.get_merge_mining_stats().await;
+    let stats = {
+        let node = state.node.lock().unwrap();
+        node.get_merge_mining_stats().await
+    };
     Json(stats)
 }
 
 async fn get_fuego_blocks(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let fuego_blocks_guard = state.node.fuego_blocks.lock().unwrap();
+    let node = state.node.lock().unwrap();
+    let fuego_blocks_guard = node.fuego_blocks.lock().unwrap();
     let blocks: Vec<_> = fuego_blocks_guard.values().collect();
     Json(json!({
         "fuego_blocks": blocks,
@@ -1529,7 +1546,11 @@ async fn get_fuego_block(
     State(state): State<AppState>,
     Path(height): Path<u64>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.node.get_fuego_block(height).await {
+    let block_result = {
+        let node = state.node.lock().unwrap();
+        node.get_fuego_block(height).await
+    };
+    match block_result {
         Some(block) => Ok(Json(json!(block))),
         None => Err(StatusCode::NOT_FOUND),
     }
@@ -1539,7 +1560,8 @@ async fn get_fuego_block(
 
 /// Get privacy status endpoint
 async fn get_privacy_status(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let status = state.node.get_privacy_status();
+    let node = state.node.lock().unwrap();
+    let status = node.get_privacy_status();
     Json(status)
 }
 
@@ -1548,12 +1570,16 @@ async fn create_private_transaction(
     State(state): State<AppState>,
     Json(request): Json<CreatePrivateTransactionRequest>,
 ) -> Result<Json<privacy::PrivateTransaction>, StatusCode> {
-    match state.node.create_private_transaction(
-        &request.sender,
-        &request.recipient,
-        request.amount,
-        request.sender_balance,
-    ).await {
+    let tx_result = {
+        let mut node = state.node.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        node.create_private_transaction(
+            &request.sender,
+            &request.recipient,
+            request.amount,
+            request.sender_balance,
+        ).await
+    };
+    match tx_result {
         Ok(tx) => Ok(Json(tx)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -1564,9 +1590,13 @@ async fn submit_private_transaction(
     State(state): State<AppState>,
     Json(tx): Json<privacy::PrivateTransaction>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.node.process_private_transaction(tx).await {
+    let result = {
+        let node = state.node.lock().unwrap();
+        node.process_private_transaction(tx).await
+    };
+    match result {
         Ok(_) => Ok(Json(json!({
-            "status": "success", 
+            "status": "success",
             "message": "Private transaction submitted",
             "privacy_level": "maximum"
         }))),
@@ -1579,7 +1609,11 @@ async fn get_private_transaction(
     State(state): State<AppState>,
     Path(hash): Path<String>,
 ) -> Result<Json<privacy::PrivateTransaction>, StatusCode> {
-    match state.node.get_private_transaction(&hash).await {
+    let tx_result = {
+        let node = state.node.lock().unwrap();
+        node.get_private_transaction(&hash).await
+    };
+    match tx_result {
         Ok(Some(tx)) => Ok(Json(tx)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -1591,7 +1625,8 @@ async fn verify_private_transaction(
     State(state): State<AppState>,
     Json(tx): Json<privacy::PrivateTransaction>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    if let Some(ref privacy_manager) = state.node.privacy_manager {
+    let node = state.node.lock().unwrap();
+    if let Some(ref privacy_manager) = node.privacy_manager {
         match privacy_manager.verify_private_transaction(&tx) {
             Ok(is_valid) => Ok(Json(json!({
                 "valid": is_valid,
@@ -1609,7 +1644,11 @@ async fn decrypt_transaction_details(
     State(state): State<AppState>,
     Json(tx): Json<privacy::PrivateTransaction>,
 ) -> Result<Json<privacy::DecryptedTransaction>, StatusCode> {
-    match state.node.decrypt_transaction_details(&tx).await {
+    let decrypted_result = {
+        let node = state.node.lock().unwrap();
+        node.decrypt_transaction_details(&tx).await
+    };
+    match decrypted_result {
         Ok(decrypted) => Ok(Json(decrypted)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
