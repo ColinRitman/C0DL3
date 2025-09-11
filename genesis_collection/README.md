@@ -40,32 +40,15 @@ Each 𝝣lderado NFT contains the following attributes:
 - **Eyes**: Eye color/style representing the validator's personality
 - **Accessory**: Unique item held by the validator
 
-## 🚀 Genesis NFTs
+## 🚀 On-Demand Genesis NFTs
 
-### Genesis Collection (21/21)
-All 21 𝝣lderado NFTs are identical and represent the founding validators of the zkC0DL3 network:
+### Genesis Collection (0/21 initially)
+Users can mint up to 21 𝝣lderado NFTs by staking exactly 80,000,000,000 HEAT tokens each. All minted NFTs are identical and represent founding validators of the zkC0DL3 network.
 
-1. **𝝣lderado #001** ⭐
-2. **𝝣lderado #002** ⭐
-3. **𝝣lderado #003** ⭐
-4. **𝝣lderado #004** ⭐
-5. **𝝣lderado #005** ⭐
-6. **𝝣lderado #006** ⭐
-7. **𝝣lderado #007** ⭐
-8. **𝝣lderado #008** ⭐
-9. **𝝣lderado #009** ⭐
-10. **𝝣lderado #010** ⭐
-11. **𝝣lderado #011** ⭐
-12. **𝝣lderado #012** ⭐
-13. **𝝣lderado #013** ⭐
-14. **𝝣lderado #014** ⭐
-15. **𝝣lderado #015** ⭐
-16. **𝝣lderado #016** ⭐
-17. **𝝣lderado #017** ⭐
-18. **𝝣lderado #018** ⭐
-19. **𝝣lderado #019** ⭐
-20. **𝝣lderado #020** ⭐
-21. **𝝣lderado #021** ⭐
+**Minting Process:**
+1. User sends exactly 80B HEAT tokens to `mintElderadoToSelf()`
+2. Contract mints NFT with sequential numbering (𝝣lderado #001, #002, etc.)
+3. NFT provides validator status and benefits
 
 **All NFTs have identical attributes:**
 - Power Level: 100
@@ -96,8 +79,8 @@ All 21 𝝣lderado NFTs are identical and represent the founding validators of t
 ## 🛠️ Smart Contract Features
 
 ### Core Functions
-- `mintElderado()`: Mint individual 𝝣lderado NFTs
-- `executeGenesisTransaction()`: Execute the complete genesis mint
+- `mintElderado()`: Mint NFT to specific address (requires 80B HEAT)
+- `mintElderadoToSelf()`: Mint NFT to caller (requires 80B HEAT)
 - `getValidatorData()`: Retrieve validator information
 - `getAllValidators()`: Get all validator data
 - `getValidatorsByType()`: Filter validators by type
@@ -143,8 +126,9 @@ ETHERSCAN_API_KEY=your_etherscan_key
 ## 📁 File Structure
 
 ```
-nft_collection/
+genesis_collection/
 ├── README.md                           # This file
+├── STAKING_GUIDE.md                    # Staking system guide
 ├── elderado_genesis_collection.json    # Complete NFT metadata
 ├── ElderadoGenesisContract.sol         # Smart contract
 ├── deploy_genesis.js                   # Deployment script
@@ -154,36 +138,52 @@ nft_collection/
 
 ## 🎮 Usage Examples
 
+### Mint NFTs by Staking HEAT
+```javascript
+// Mint NFT to yourself by staking 80B HEAT tokens
+await contract.mintElderadoToSelf({
+    value: "80000000000" // Exactly 80,000,000,000 HEAT tokens
+});
+
+// Mint NFT to specific address
+await contract.mintElderado(recipientAddress, {
+    value: "80000000000"
+});
+```
+
 ### Query Validator Data
 ```javascript
 // Get specific validator
 const validator = await contract.getValidatorData(0);
-console.log(validator.name); // "𝝣lderado #001 - The Founder"
+console.log(validator.name); // "𝝣lderado #001"
 
 // Get all validators
 const allValidators = await contract.getAllValidators();
 
 // Get validators by type
-const guardians = await contract.getValidatorsByType("Network Guardian");
+const genesisValidators = await contract.getValidatorsByType("Genesis Validator");
 
 // Get validators by rarity
-const epicValidators = await contract.getValidatorsByRarityScore(800, 1000);
+const legendaryValidators = await contract.getValidatorsByRarityScore(900, 1000);
 ```
 
 ### Collection Statistics
 ```javascript
 const stats = await contract.getCollectionStats();
-console.log(`Total Supply: ${stats.totalSupply}`);
-console.log(`Total Rarity Score: ${stats.totalRarityScore}`);
-console.log(`Average Rarity Score: ${stats.averageRarityScore}`);
+console.log(`Total Supply: ${stats.totalSupply} / 21`);
+console.log(`Staking Amount Required: ${stats.stakingAmount} HEAT`);
+console.log(`Minting Enabled: ${stats.mintingEnabled}`);
 ```
 
 ## 🔒 Security Features
 
 - **ReentrancyGuard**: Prevents reentrancy attacks
-- **Ownable**: Access control for admin functions
+- **Ownable**: Access control for admin functions (enable/disable minting)
 - **ERC721Enumerable**: Safe enumeration of tokens
 - **ERC721URIStorage**: Secure URI management
+- **Staking Validation**: Exact 80B HEAT token requirement for minting
+- **Transfer Restrictions**: Fixed price enforcement for NFT transfers
+- **Supply Cap**: Maximum 21 NFTs can be minted
 - **Input Validation**: Comprehensive parameter validation
 
 ## 🌐 Metadata
@@ -191,11 +191,11 @@ console.log(`Average Rarity Score: ${stats.averageRarityScore}`);
 ### Token Metadata Structure
 ```json
 {
-  "name": "𝝣lderado #001 - The Founder",
-  "description": "The first 𝝣lderado validator...",
-  "image": "elderado_001_founder.png",
+  "name": "𝝣lderado #001",
+  "description": "Genesis validator NFT for zkC0DL3 network. Stake exactly 80B HEAT tokens to become a validator.",
+  "image": "elderado_001.png",
   "attributes": [
-    {"trait_type": "Validator Type", "value": "Genesis Founder"},
+    {"trait_type": "Validator Type", "value": "Genesis Validator"},
     {"trait_type": "Rarity", "value": "Legendary"},
     {"trait_type": "Power Level", "value": 100},
     {"trait_type": "Stake Multiplier", "value": "3.0x"},
@@ -225,15 +225,16 @@ console.log(`Average Rarity Score: ${stats.averageRarityScore}`);
 - **Rental System**: Rent validator NFTs for staking
 
 ### Roadmap
-- **Q1 2024**: Genesis collection launch
-- **Q2 2024**: Staking integration
+- **Q1 2024**: On-demand minting system launch
+- **Q2 2024**: User staking and validator activation
 - **Q3 2024**: Governance features
-- **Q4 2024**: Cross-chain expansion
+- **Q4 2024**: Advanced validator features
 
 ## 📚 Additional Resources
 
 ### Documentation
 - [zkC0DL3 Main Documentation](../README.md)
+- [Staking Guide](./STAKING_GUIDE.md)
 - [Validator Guide](../docs/ZKC0DL3_VALIDATOR_GUIDE.md)
 - [Smart Contract Documentation](./contract_docs.md)
 
@@ -268,6 +269,6 @@ npx hardhat verify --network localhost <contract_address> "𝝣lderado Genesis C
 
 ---
 
-**𝝣lderado Genesis Collection** - The foundation of zkC0DL3's validator ecosystem, immortalized as NFTs on the blockchain.
+**𝝣lderado Genesis Collection** - On-demand NFT minting system where users become zkC0DL3 validators by staking exactly 80B HEAT tokens per NFT.
 
 *For the most up-to-date information, always refer to the latest documentation and community resources.*

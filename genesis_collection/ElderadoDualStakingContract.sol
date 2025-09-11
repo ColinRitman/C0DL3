@@ -11,15 +11,15 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title ElderadoGenesisCollection
- * @dev Genesis NFT collection for zkC0DL3 𝝣lderado validators
+ * @dev Genesis NFT collection for zkC0DL3 𝝣lderado validators with HEAT token staking
  * @author zkC0DL3 Foundation
  */
-contract ElderadoGenesisCollection is 
-    ERC721, 
-    ERC721Enumerable, 
-    ERC721URIStorage, 
-    Ownable, 
-    ReentrancyGuard 
+contract ElderadoGenesisCollection is
+    ERC721,
+    ERC721Enumerable,
+    ERC721URIStorage,
+    Ownable,
+    ReentrancyGuard
 {
     using Counters for Counters.Counter;
     using Strings for uint256;
@@ -48,7 +48,7 @@ contract ElderadoGenesisCollection is
         uint256 rarityScore;
         bool isGenesis;
     }
-    
+
     // Mapping from token ID to validator data
     mapping(uint256 => ElderadoValidator) public validators;
     
@@ -60,7 +60,7 @@ contract ElderadoGenesisCollection is
         string validatorType,
         uint256 powerLevel
     );
-    
+
     event GenesisTransactionExecuted(
         uint256 indexed blockNumber,
         uint256 totalMinted,
@@ -92,6 +92,7 @@ contract ElderadoGenesisCollection is
         mintingEnabled = false;
     }
     
+
     /**
      * @dev Mint a genesis 𝝣lderado NFT
      * @param to The address to mint to
@@ -104,10 +105,10 @@ contract ElderadoGenesisCollection is
         require(mintingEnabled, "Minting not enabled");
         require(_tokenIdCounter.current() < MAX_SUPPLY, "Max supply reached");
         require(to != address(0), "Invalid recipient");
-        
+
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
-        
+
         // Store validator data
         validators[tokenId] = ElderadoValidator({
             tokenId: tokenId,
@@ -119,9 +120,9 @@ contract ElderadoGenesisCollection is
             rarityScore: validatorData.rarityScore,
             isGenesis: true
         });
-        
+
         _safeMint(to, tokenId);
-        
+
         emit ElderadoMinted(
             tokenId,
             to,
@@ -144,13 +145,13 @@ contract ElderadoGenesisCollection is
         require(recipients.length == MAX_SUPPLY, "Invalid recipients length");
         require(validatorDataArray.length == MAX_SUPPLY, "Invalid validator data length");
         require(_tokenIdCounter.current() == 0, "Genesis already executed");
-        
+
         uint256 totalValue = 0;
-        
+
         for (uint256 i = 0; i < MAX_SUPPLY; i++) {
             uint256 tokenId = _tokenIdCounter.current();
             _tokenIdCounter.increment();
-            
+
             // Store validator data
             validators[tokenId] = ElderadoValidator({
                 tokenId: tokenId,
@@ -162,10 +163,10 @@ contract ElderadoGenesisCollection is
                 rarityScore: validatorDataArray[i].rarityScore,
                 isGenesis: true
             });
-            
+
             _safeMint(recipients[i], tokenId);
             totalValue += MINT_PRICE;
-            
+
             emit ElderadoMinted(
                 tokenId,
                 recipients[i],
@@ -174,7 +175,7 @@ contract ElderadoGenesisCollection is
                 validatorDataArray[i].powerLevel
             );
         }
-        
+
         emit GenesisTransactionExecuted(
             block.number,
             MAX_SUPPLY,
@@ -200,35 +201,35 @@ contract ElderadoGenesisCollection is
      * @dev Get all validator data
      * @return validatorsArray Array of all validator data
      */
-    function getAllValidators() 
-        external 
-        view 
-        returns (ElderadoValidator[] memory validatorsArray) 
+    function getAllValidators()
+        external
+        view
+        returns (ElderadoValidator[] memory validatorsArray)
     {
         uint256 totalSupply = totalSupply();
         validatorsArray = new ElderadoValidator[](totalSupply);
-        
+
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
             validatorsArray[i] = validators[tokenId];
         }
-        
+
         return validatorsArray;
     }
-    
+
     /**
      * @dev Get validator by type
      * @param validatorType The validator type to search for
      * @return validatorsArray Array of validators with the specified type
      */
-    function getValidatorsByType(string memory validatorType) 
-        external 
-        view 
-        returns (ElderadoValidator[] memory validatorsArray) 
+    function getValidatorsByType(string memory validatorType)
+        external
+        view
+        returns (ElderadoValidator[] memory validatorsArray)
     {
         uint256 count = 0;
         uint256 totalSupply = totalSupply();
-        
+
         // Count validators with the specified type
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
@@ -236,11 +237,11 @@ contract ElderadoGenesisCollection is
                 count++;
             }
         }
-        
+
         // Create array with correct size
         validatorsArray = new ElderadoValidator[](count);
         uint256 index = 0;
-        
+
         // Populate array
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
@@ -249,24 +250,24 @@ contract ElderadoGenesisCollection is
                 index++;
             }
         }
-        
+
         return validatorsArray;
     }
-    
+
     /**
      * @dev Get validators by rarity score range
      * @param minScore Minimum rarity score
      * @param maxScore Maximum rarity score
      * @return validatorsArray Array of validators within the score range
      */
-    function getValidatorsByRarityScore(uint256 minScore, uint256 maxScore) 
-        external 
-        view 
-        returns (ElderadoValidator[] memory validatorsArray) 
+    function getValidatorsByRarityScore(uint256 minScore, uint256 maxScore)
+        external
+        view
+        returns (ElderadoValidator[] memory validatorsArray)
     {
         uint256 count = 0;
         uint256 totalSupply = totalSupply();
-        
+
         // Count validators within score range
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
@@ -274,11 +275,11 @@ contract ElderadoGenesisCollection is
                 count++;
             }
         }
-        
+
         // Create array with correct size
         validatorsArray = new ElderadoValidator[](count);
         uint256 index = 0;
-        
+
         // Populate array
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
@@ -287,25 +288,25 @@ contract ElderadoGenesisCollection is
                 index++;
             }
         }
-        
+
         return validatorsArray;
     }
-    
+
     /**
      * @dev Calculate total rarity score of all validators
      * @return totalScore Total rarity score
      */
     function getTotalRarityScore() external view returns (uint256 totalScore) {
         uint256 totalSupply = totalSupply();
-        
+
         for (uint256 i = 0; i < totalSupply; i++) {
             uint256 tokenId = tokenByIndex(i);
             totalScore += validators[tokenId].rarityScore;
         }
-        
+
         return totalScore;
     }
-    
+
     /**
      * @dev Get average rarity score
      * @return averageScore Average rarity score
@@ -313,11 +314,11 @@ contract ElderadoGenesisCollection is
     function getAverageRarityScore() external view returns (uint256 averageScore) {
         uint256 totalSupply = totalSupply();
         if (totalSupply == 0) return 0;
-        
+
         uint256 totalScore = this.getTotalRarityScore();
         return totalScore / totalSupply;
     }
-    
+
     /**
      * @dev Get collection statistics
      * @return totalSupply Total number of minted NFTs
@@ -326,16 +327,16 @@ contract ElderadoGenesisCollection is
      * @return mintingEnabled Current minting status
      * @return stakingAmount Required staking amount for transfers
      */
-    function getCollectionStats() 
-        external 
-        view 
+    function getCollectionStats()
+        external
+        view
         returns (
             uint256 totalSupply,
             uint256 totalRarityScore,
             uint256 averageRarityScore,
             bool mintingEnabled,
             uint256 stakingAmount
-        ) 
+        )
     {
         totalSupply = totalSupply();
         totalRarityScore = this.getTotalRarityScore();
@@ -343,7 +344,7 @@ contract ElderadoGenesisCollection is
         mintingEnabled = mintingEnabled;
         stakingAmount = STAKING_AMOUNT;
     }
-    
+
     /**
      * @dev Get the required staking amount for NFT transfers
      * @return The staking amount required to transfer NFTs
@@ -351,6 +352,69 @@ contract ElderadoGenesisCollection is
     function getStakingAmount() external pure returns (uint256) {
         return STAKING_AMOUNT;
     }
+    
+    /**
+     * @dev Override transfer to enforce staking amount restriction
+     */
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override(ERC721, ERC721Enumerable) {
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super._beforeTokenTransfer(from, to, tokenId, batchSize);
+            return;
+        }
+
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+    
+    /**
+     * @dev Override transferFrom to enforce staking amount restriction
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public payable override(ERC721, IERC721) {
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super.transferFrom(from, to, tokenId);
+            return;
+        }
+
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+
+        super.transferFrom(from, to, tokenId);
+    }
+    
+    /**
+     * @dev Override safeTransferFrom to enforce staking amount restriction
+     */
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public payable override(ERC721, IERC721) {
+        // Allow minting (from address(0)) and burning (to address(0))
+        if (from == address(0) || to == address(0)) {
+            super.safeTransferFrom(from, to, tokenId, data);
+            return;
+        }
+
+        // For transfers between users, enforce staking amount restriction
+        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
+
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+    
     
     /**
      * @dev Set base URI for token metadata
@@ -412,70 +476,6 @@ contract ElderadoGenesisCollection is
      */
     function _baseURI() internal view override returns (string memory) {
         return _baseTokenURI;
-    }
-    
-    /**
-
-     * @dev Override transfer to enforce staking amount restriction
-     */
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override(ERC721, ERC721Enumerable) {
-
-        // Allow minting (from address(0)) and burning (to address(0))
-        if (from == address(0) || to == address(0)) {
-            super._beforeTokenTransfer(from, to, tokenId, batchSize);
-            return;
-        }
-        
-        // For transfers between users, enforce staking amount restriction
-        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
-        
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
-    }
-    
-    /**
-     * @dev Override transferFrom to enforce staking amount restriction
-     */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public payable override(ERC721, IERC721) {
-        // Allow minting (from address(0)) and burning (to address(0))
-        if (from == address(0) || to == address(0)) {
-            super.transferFrom(from, to, tokenId);
-            return;
-        }
-        
-        // For transfers between users, enforce staking amount restriction
-        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
-        
-        super.transferFrom(from, to, tokenId);
-    }
-    
-    /**
-     * @dev Override safeTransferFrom to enforce staking amount restriction
-     */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) public payable override(ERC721, IERC721) {
-        // Allow minting (from address(0)) and burning (to address(0))
-        if (from == address(0) || to == address(0)) {
-            super.safeTransferFrom(from, to, tokenId, data);
-            return;
-        }
-        
-        // For transfers between users, enforce staking amount restriction
-        require(msg.value == STAKING_AMOUNT, "NFT can only be sold for the staking amount");
-        
-        super.safeTransferFrom(from, to, tokenId, data);
     }
     
     /**
