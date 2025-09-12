@@ -1,4 +1,4 @@
-# Fwei : zkC0DL3 Native Gas Unit using Fuego Ξmbers (HEAT)
+# Fwei : zkC0DL3 Native Gas Unit for Fuego Ξmbers (HEAT)
 
 ## Overview
 
