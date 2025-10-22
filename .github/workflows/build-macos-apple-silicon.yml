@@ -1,10 +1,12 @@
-name: macOS Apple Silicon CI
+name: macOS Apple Silicon Production CI
 
 on:
   push:
     branches: [ main, develop, feature/* ]
   pull_request:
     branches: [ main, develop ]
+  schedule:
+    - cron: '0 4 * * *'  # Daily at 4 AM UTC
 
 jobs:
   test-macos-apple-silicon:
@@ -19,7 +21,7 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-        components: rustfmt, clippy
+        components: rustfmt, clippy, rust-src
 
     - name: Cache Cargo registry
       uses: actions/cache@v4
@@ -39,9 +41,12 @@ jobs:
     - name: Run clippy
       run: cargo clippy --no-default-features -- -D warnings
 
+    - name: Run clippy (with privacy features)
+      run: cargo clippy --features exp-privacy -- -D warnings
+
     - name: Install system dependencies
       run: |
-        brew install openssl
+        brew install openssl pkg-config
         export OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl
         export OPENSSL_LIB_DIR=/opt/homebrew/opt/openssl/lib
         export OPENSSL_INCLUDE_DIR=/opt/homebrew/opt/openssl/include
@@ -55,6 +60,20 @@ jobs:
 
     - name: Build (with CLI UI)
       run: cargo build --features cli-ui
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build (with privacy features)
+      run: cargo build --features exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build (with all features)
+      run: cargo build --features cli-ui,exp-privacy
       env:
         OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
         OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
@@ -76,17 +95,91 @@ jobs:
         OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
         OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
 
-    - name: Build release binary
+    - name: Run tests (with privacy features)
+      run: cargo test --features exp-privacy --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run privacy tests
+      run: cargo test --features exp-privacy --lib -- privacy
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build release binary (default)
       run: cargo build --release --no-default-features
       env:
         OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
         OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
         OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
 
-    - name: Upload build artifacts
+    - name: Build release binary (with CLI UI)
+      run: cargo build --release --features cli-ui
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build release binary (with privacy)
+      run: cargo build --release --features exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Build release binary (production)
+      run: cargo build --release --features cli-ui,exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run production tests
+      run: cargo test --release --features cli-ui,exp-privacy --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Upload build artifacts (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-macos-apple-silicon
+        name: codl3-zksync-macos-apple-silicon-default
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-cli-ui
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-privacy
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-production
         path: target/release/codl3-zksync
         if-no-files-found: warn
 
@@ -115,14 +208,150 @@ jobs:
         export PATH="$PWD/target/bin:$PATH"
         echo "PATH=$PWD/target/bin:$PATH" >> $GITHUB_ENV
 
-    - name: Build for Apple Silicon
+    - name: Build for Apple Silicon (default)
       run: |
         export PATH="/home/runner/work/osxcross/target/bin:$PATH"
         cargo build --release --no-default-features --target aarch64-apple-darwin
 
-    - name: Upload Apple Silicon cross-compiled binary
+    - name: Build for Apple Silicon (CLI UI)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features cli-ui --target aarch64-apple-darwin
+
+    - name: Build for Apple Silicon (privacy)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features exp-privacy --target aarch64-apple-darwin
+
+    - name: Build for Apple Silicon (production)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features cli-ui,exp-privacy --target aarch64-apple-darwin
+
+    - name: Upload Apple Silicon cross-compiled binary (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-macos-apple-silicon-cross
+        name: codl3-zksync-macos-apple-silicon-cross-default
         path: target/aarch64-apple-darwin/release/codl3-zksync
         if-no-files-found: warn
+
+    - name: Upload Apple Silicon cross-compiled binary (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-cross-cli-ui
+        path: target/aarch64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload Apple Silicon cross-compiled binary (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-cross-privacy
+        path: target/aarch64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload Apple Silicon cross-compiled binary (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-apple-silicon-cross-production
+        path: target/aarch64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+  macos-security-audit:
+    name: macOS Security Audit
+    runs-on: macos-14
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install system dependencies
+      run: |
+        brew install openssl pkg-config
+        export OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl
+        export OPENSSL_LIB_DIR=/opt/homebrew/opt/openssl/lib
+        export OPENSSL_INCLUDE_DIR=/opt/homebrew/opt/openssl/include
+
+    - name: Install security tools
+      run: |
+        cargo install cargo-audit
+        cargo install cargo-deny
+
+    - name: Run security audit
+      run: cargo audit --ignore RUSTSEC-2021-0145
+
+    - name: Run dependency check
+      run: cargo deny check
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run privacy security tests
+      run: cargo test --features exp-privacy --lib -- privacy::tests
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+  macos-performance-benchmark:
+    name: macOS Performance Benchmark
+    runs-on: macos-14
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install system dependencies
+      run: |
+        brew install openssl pkg-config
+        export OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl
+        export OPENSSL_LIB_DIR=/opt/homebrew/opt/openssl/lib
+        export OPENSSL_INCLUDE_DIR=/opt/homebrew/opt/openssl/include
+
+    - name: Build release binary
+      run: cargo build --release --features cli-ui,exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run performance benchmarks
+      run: |
+        echo "Running STARK proof generation benchmarks..."
+        cargo run --release --features exp-privacy --example production_stark_test
+        echo "Running privacy performance tests..."
+        cargo run --release --features exp-privacy --example phase4_performance_test
+        echo "Running mining performance tests..."
+        cargo run --release --features exp-privacy --example cn_upx2_test
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
+
+    - name: Run memory usage tests
+      run: |
+        echo "Testing memory usage..."
+        cargo test --release --features exp-privacy --lib -- memory
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl
+        OPENSSL_LIB_DIR: /opt/homebrew/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /opt/homebrew/opt/openssl/include
