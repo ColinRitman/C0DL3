@@ -1,10 +1,12 @@
-name: Windows CI
+name: Windows Production CI
 
 on:
   push:
     branches: [ main, develop, feature/* ]
   pull_request:
     branches: [ main, develop ]
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
 jobs:
   test-windows:
@@ -19,7 +21,13 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable-x86_64-pc-windows-msvc
-        components: rustfmt, clippy
+        components: rustfmt, clippy, rust-src
+
+    - name: Install system dependencies
+      run: |
+        # Install Visual Studio Build Tools
+        choco install visualstudio2022buildtools -y
+        choco install visualstudio2022-workload-vctools -y
 
     - name: Cache Cargo registry
       uses: actions/cache@v4
@@ -39,11 +47,20 @@ jobs:
     - name: Run clippy
       run: cargo clippy --no-default-features -- -D warnings
 
+    - name: Run clippy (with privacy features)
+      run: cargo clippy --features exp-privacy -- -D warnings
+
     - name: Build (default features)
       run: cargo build --no-default-features
 
     - name: Build (with CLI UI)
       run: cargo build --features cli-ui
+
+    - name: Build (with privacy features)
+      run: cargo build --features exp-privacy
+
+    - name: Build (with all features)
+      run: cargo build --features cli-ui,exp-privacy
 
     - name: Run tests (default features)
       run: cargo test --no-default-features --lib
@@ -53,13 +70,59 @@ jobs:
       run: cargo test --features cli-ui --lib
       continue-on-error: true
 
-    - name: Build release binary
+    - name: Run tests (with privacy features)
+      run: cargo test --features exp-privacy --lib
+      continue-on-error: true
+
+    - name: Run privacy tests
+      run: cargo test --features exp-privacy --lib -- privacy
+      continue-on-error: true
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+
+    - name: Build release binary (default)
       run: cargo build --release --no-default-features
 
-    - name: Upload build artifacts
+    - name: Build release binary (with CLI UI)
+      run: cargo build --release --features cli-ui
+
+    - name: Build release binary (with privacy)
+      run: cargo build --release --features exp-privacy
+
+    - name: Build release binary (production)
+      run: cargo build --release --features cli-ui,exp-privacy
+
+    - name: Run production tests
+      run: cargo test --release --features cli-ui,exp-privacy --lib
+      continue-on-error: true
+
+    - name: Upload build artifacts (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-windows
+        name: codl3-zksync-windows-default
+        path: target/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-cli-ui
+        path: target/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-privacy
+        path: target/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-production
         path: target/release/codl3-zksync.exe
         if-no-files-found: warn
 
@@ -76,19 +139,120 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-        target: x86_64-pc-windows-gnu
+        targets: x86_64-pc-windows-gnu, x86_64-pc-windows-msvc
 
     - name: Install cross-compilation tools
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-mingw-w64
 
-    - name: Build for Windows
+    - name: Build for Windows (GNU)
       run: cargo build --release --no-default-features --target x86_64-pc-windows-gnu
 
-    - name: Upload Windows cross-compiled binary
+    - name: Build for Windows (GNU with CLI UI)
+      run: cargo build --release --features cli-ui --target x86_64-pc-windows-gnu
+
+    - name: Build for Windows (GNU with privacy)
+      run: cargo build --release --features exp-privacy --target x86_64-pc-windows-gnu
+
+    - name: Build for Windows (GNU production)
+      run: cargo build --release --features cli-ui,exp-privacy --target x86_64-pc-windows-gnu
+
+    - name: Upload Windows cross-compiled binary (GNU default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-windows-cross
+        name: codl3-zksync-windows-gnu-default
         path: target/x86_64-pc-windows-gnu/release/codl3-zksync.exe
         if-no-files-found: warn
+
+    - name: Upload Windows cross-compiled binary (GNU CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-gnu-cli-ui
+        path: target/x86_64-pc-windows-gnu/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+    - name: Upload Windows cross-compiled binary (GNU privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-gnu-privacy
+        path: target/x86_64-pc-windows-gnu/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+    - name: Upload Windows cross-compiled binary (GNU production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-windows-gnu-production
+        path: target/x86_64-pc-windows-gnu/release/codl3-zksync.exe
+        if-no-files-found: warn
+
+  windows-security-audit:
+    name: Windows Security Audit
+    runs-on: windows-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable-x86_64-pc-windows-msvc
+
+    - name: Install security tools
+      run: |
+        cargo install cargo-audit
+        cargo install cargo-deny
+
+    - name: Run security audit
+      run: cargo audit --ignore RUSTSEC-2021-0145
+
+    - name: Run dependency check
+      run: cargo deny check
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+
+    - name: Run privacy security tests
+      run: cargo test --features exp-privacy --lib -- privacy::tests
+      continue-on-error: true
+
+  windows-performance-benchmark:
+    name: Windows Performance Benchmark
+    runs-on: windows-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable-x86_64-pc-windows-msvc
+
+    - name: Install system dependencies
+      run: |
+        choco install visualstudio2022buildtools -y
+        choco install visualstudio2022-workload-vctools -y
+
+    - name: Build release binary
+      run: cargo build --release --features cli-ui,exp-privacy
+
+    - name: Run performance benchmarks
+      run: |
+        echo "Running STARK proof generation benchmarks..."
+        cargo run --release --features exp-privacy --example production_stark_test
+        echo "Running privacy performance tests..."
+        cargo run --release --features exp-privacy --example phase4_performance_test
+        echo "Running mining performance tests..."
+        cargo run --release --features exp-privacy --example cn_upx2_test
+      continue-on-error: true
+
+    - name: Run memory usage tests
+      run: |
+        echo "Testing memory usage..."
+        cargo test --release --features exp-privacy --lib -- memory
+      continue-on-error: true

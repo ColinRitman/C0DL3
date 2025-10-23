@@ -1,10 +1,12 @@
-name: macOS Intel CI
+name: macOS Intel Production CI
 
 on:
   push:
     branches: [ main, develop, feature/* ]
   pull_request:
     branches: [ main, develop ]
+  schedule:
+    - cron: '0 5 * * *'  # Daily at 5 AM UTC
 
 jobs:
   test-macos-intel:
@@ -21,7 +23,7 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-        components: rustfmt, clippy
+        components: rustfmt, clippy, rust-src
 
     - name: Cache Cargo registry
       uses: actions/cache@v4
@@ -41,9 +43,12 @@ jobs:
     - name: Run clippy
       run: cargo clippy --no-default-features -- -D warnings
 
+    - name: Run clippy (with privacy features)
+      run: cargo clippy --features exp-privacy -- -D warnings
+
     - name: Install system dependencies
       run: |
-        brew install openssl
+        brew install openssl pkg-config
         export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
         export OPENSSL_LIB_DIR=/usr/local/opt/openssl/lib
         export OPENSSL_INCLUDE_DIR=/usr/local/opt/openssl/include
@@ -57,6 +62,20 @@ jobs:
 
     - name: Build (with CLI UI)
       run: cargo build --features cli-ui
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Build (with privacy features)
+      run: cargo build --features exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Build (with all features)
+      run: cargo build --features cli-ui,exp-privacy
       env:
         OPENSSL_ROOT_DIR: /usr/local/opt/openssl
         OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
@@ -78,17 +97,91 @@ jobs:
         OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
         OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
 
-    - name: Build release binary
+    - name: Run tests (with privacy features)
+      run: cargo test --features exp-privacy --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Run privacy tests
+      run: cargo test --features exp-privacy --lib -- privacy
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Build release binary (default)
       run: cargo build --release --no-default-features
       env:
         OPENSSL_ROOT_DIR: /usr/local/opt/openssl
         OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
         OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
 
-    - name: Upload build artifacts
+    - name: Build release binary (with CLI UI)
+      run: cargo build --release --features cli-ui
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Build release binary (with privacy)
+      run: cargo build --release --features exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Build release binary (production)
+      run: cargo build --release --features cli-ui,exp-privacy
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Run production tests
+      run: cargo test --release --features cli-ui,exp-privacy --lib
+      continue-on-error: true
+      env:
+        OPENSSL_ROOT_DIR: /usr/local/opt/openssl
+        OPENSSL_LIB_DIR: /usr/local/opt/openssl/lib
+        OPENSSL_INCLUDE_DIR: /usr/local/opt/openssl/include
+
+    - name: Upload build artifacts (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-macos-intel
+        name: codl3-zksync-macos-intel-default
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-cli-ui
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-privacy
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-production
         path: target/release/codl3-zksync
         if-no-files-found: warn
 
@@ -117,14 +210,50 @@ jobs:
         export PATH="$PWD/target/bin:$PATH"
         echo "PATH=$PWD/target/bin:$PATH" >> $GITHUB_ENV
 
-    - name: Build for macOS Intel
+    - name: Build for macOS Intel (default)
       run: |
         export PATH="/home/runner/work/osxcross/target/bin:$PATH"
         cargo build --release --no-default-features --target x86_64-apple-darwin
 
-    - name: Upload macOS cross-compiled binary
+    - name: Build for macOS Intel (CLI UI)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features cli-ui --target x86_64-apple-darwin
+
+    - name: Build for macOS Intel (privacy)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features exp-privacy --target x86_64-apple-darwin
+
+    - name: Build for macOS Intel (production)
+      run: |
+        export PATH="/home/runner/work/osxcross/target/bin:$PATH"
+        cargo build --release --features cli-ui,exp-privacy --target x86_64-apple-darwin
+
+    - name: Upload macOS cross-compiled binary (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-macos-intel-cross
+        name: codl3-zksync-macos-intel-cross-default
+        path: target/x86_64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload macOS cross-compiled binary (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-cross-cli-ui
+        path: target/x86_64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload macOS cross-compiled binary (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-cross-privacy
+        path: target/x86_64-apple-darwin/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload macOS cross-compiled binary (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-macos-intel-cross-production
         path: target/x86_64-apple-darwin/release/codl3-zksync
         if-no-files-found: warn

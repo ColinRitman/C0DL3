@@ -1,10 +1,12 @@
-name: Ubuntu CI
+name: Ubuntu Production CI
 
 on:
   push:
     branches: [ main, develop, feature/* ]
   pull_request:
     branches: [ main, develop ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 jobs:
   test-ubuntu:
@@ -23,7 +25,12 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-        components: rustfmt, clippy
+        components: rustfmt, clippy, rust-src
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev
 
     - name: Cache Cargo registry
       uses: actions/cache@v4
@@ -43,11 +50,20 @@ jobs:
     - name: Run clippy
       run: cargo clippy --no-default-features -- -D warnings
 
+    - name: Run clippy (with privacy features)
+      run: cargo clippy --features exp-privacy -- -D warnings
+
     - name: Build (default features)
       run: cargo build --no-default-features
 
     - name: Build (with CLI UI)
       run: cargo build --features cli-ui
+
+    - name: Build (with privacy features)
+      run: cargo build --features exp-privacy
+
+    - name: Build (with all features)
+      run: cargo build --features cli-ui,exp-privacy
 
     - name: Run tests (default features)
       run: cargo test --no-default-features --lib
@@ -57,13 +73,59 @@ jobs:
       run: cargo test --features cli-ui --lib
       continue-on-error: true
 
-    - name: Build release binary
+    - name: Run tests (with privacy features)
+      run: cargo test --features exp-privacy --lib
+      continue-on-error: true
+
+    - name: Run privacy tests
+      run: cargo test --features exp-privacy --lib -- privacy
+      continue-on-error: true
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+
+    - name: Build release binary (default)
       run: cargo build --release --no-default-features
 
-    - name: Upload build artifacts
+    - name: Build release binary (with CLI UI)
+      run: cargo build --release --features cli-ui
+
+    - name: Build release binary (with privacy)
+      run: cargo build --release --features exp-privacy
+
+    - name: Build release binary (production)
+      run: cargo build --release --features cli-ui,exp-privacy
+
+    - name: Run production tests
+      run: cargo test --release --features cli-ui,exp-privacy --lib
+      continue-on-error: true
+
+    - name: Upload build artifacts (default)
       uses: actions/upload-artifact@v4
       with:
-        name: codl3-zksync-ubuntu-${{ matrix.ubuntu-version }}
+        name: codl3-zksync-ubuntu-${{ matrix.ubuntu-version }}-default
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (CLI UI)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-ubuntu-${{ matrix.ubuntu-version }}-cli-ui
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (privacy)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-ubuntu-${{ matrix.ubuntu-version }}-privacy
+        path: target/release/codl3-zksync
+        if-no-files-found: warn
+
+    - name: Upload build artifacts (production)
+      uses: actions/upload-artifact@v4
+      with:
+        name: codl3-zksync-ubuntu-${{ matrix.ubuntu-version }}-production
         path: target/release/codl3-zksync
         if-no-files-found: warn
 
@@ -81,8 +143,107 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
+    - name: Install security tools
+      run: |
+        cargo install cargo-audit
+        cargo install cargo-deny
 
     - name: Run security audit
       run: cargo audit --ignore RUSTSEC-2021-0145
+
+    - name: Run dependency check
+      run: cargo deny check
+
+    - name: Run security tests
+      run: cargo test --features exp-privacy --lib -- security
+      continue-on-error: true
+
+    - name: Run privacy security tests
+      run: cargo test --features exp-privacy --lib -- privacy::tests
+      continue-on-error: true
+
+  performance-benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev
+
+    - name: Build release binary
+      run: cargo build --release --features cli-ui,exp-privacy
+
+    - name: Run performance benchmarks
+      run: |
+        echo "Running STARK proof generation benchmarks..."
+        cargo run --release --features exp-privacy --example production_stark_test
+        echo "Running privacy performance tests..."
+        cargo run --release --features exp-privacy --example phase4_performance_test
+        echo "Running mining performance tests..."
+        cargo run --release --features exp-privacy --example cn_upx2_test
+      continue-on-error: true
+
+    - name: Run memory usage tests
+      run: |
+        echo "Testing memory usage..."
+        cargo test --release --features exp-privacy --lib -- memory
+      continue-on-error: true
+
+  production-readiness:
+    name: Production Readiness Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libssl-dev libudev-dev
+
+    - name: Build production binary
+      run: cargo build --release --features cli-ui,exp-privacy
+
+    - name: Run production readiness tests
+      run: |
+        echo "Running production deployment tests..."
+        cargo run --release --features exp-privacy --example phase6_production_deployment_test
+        echo "Running security audit tests..."
+        cargo run --release --features exp-privacy --example phase5_security_audit_test
+        echo "Running privacy validation tests..."
+        cargo run --release --features exp-privacy --example phase3_advanced_privacy_test
+      continue-on-error: true
+
+    - name: Validate configuration
+      run: |
+        echo "Validating production configuration..."
+        ./target/release/codl3-zksync --config config.example.json --validate
+      continue-on-error: true
+
+    - name: Test RPC endpoints
+      run: |
+        echo "Testing RPC endpoints..."
+        ./target/release/codl3-zksync --config config.example.json &
+        sleep 10
+        curl -f http://localhost:8080/stats || echo "RPC test failed"
+        curl -f http://localhost:8080/privacy/status || echo "Privacy RPC test failed"
+        pkill codl3-zksync
+      continue-on-error: true
