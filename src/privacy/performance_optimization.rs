@@ -11,11 +11,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::task;
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    production_stark_proofs::ProductionStarkProofSystem,
-    advanced_privacy_features::AdvancedPrivacyFeatures,
-};
+use crate::privacy::user_privacy::UserPrivacyManager;
+use crate::privacy::user_privacy::PrivateTransaction;
+#[cfg(feature = "deprecated-stark")]
+use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
+use crate::privacy::advanced_privacy_features::AdvancedPrivacyFeatures;
 
 /// Performance-optimized privacy system
 pub struct OptimizedPrivacySystem {

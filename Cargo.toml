@@ -16,6 +16,8 @@ default = []
 cli-ui = []
 # Enable heavy/experimental privacy modules if needed
 exp-privacy = []
+# Temporary gate for legacy STARK modules (kept out of build by default)
+deprecated-stark = []
 
 [dependencies]
 anyhow = "1.0.99"

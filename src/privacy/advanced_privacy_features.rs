@@ -11,10 +11,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::privacy::{
-    user_privacy::PrivateTransaction,
-    production_stark_proofs::ProductionStarkProofSystem,
-};
+use crate::privacy::user_privacy::PrivateTransaction;
+#[cfg(feature = "deprecated-stark")]
+use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
 
 /// Advanced privacy features coordinator
 pub struct AdvancedPrivacyFeatures {
@@ -23,6 +22,7 @@ pub struct AdvancedPrivacyFeatures {
     /// Anonymity set manager
     anonymity_manager: Arc<Mutex<AnonymityManager>>,
     /// Zero-knowledge proof system
+    #[cfg(feature = "deprecated-stark")]
     zk_proof_system: ProductionStarkProofSystem,
     /// Privacy metrics tracker
     privacy_metrics: Arc<Mutex<PrivacyMetrics>>,
@@ -302,6 +302,7 @@ impl AdvancedPrivacyFeatures {
     }
     
     /// Generate zero-knowledge proof for transaction privacy
+    #[cfg(feature = "deprecated-stark")]
     pub fn generate_privacy_proof(&self, _transaction: &PrivateTransaction) -> Result<ZeroKnowledgePrivacyProof> {
         // Generate STARK proof for transaction privacy
         let stark_proof = self.zk_proof_system.prove_transaction_privacy(1000, 5000)?;
@@ -323,6 +324,7 @@ impl AdvancedPrivacyFeatures {
     }
     
     /// Verify mixing proof
+    #[cfg(feature = "deprecated-stark")]
     pub fn verify_mixing_proof(&self, proof: &MixingProof) -> Result<bool> {
         // Verify STARK proof
         let stark_proof = crate::privacy::production_stark_proofs::ProductionStarkProof {

@@ -5,8 +5,13 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use bulletproofs::{BulletproofGens, PedersenGens};
+use curve25519_dalek_ng::{
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar,
+};
 use rand::{thread_rng, RngCore};
 use once_cell::sync::Lazy;
+use merlin::Transcript;
 
 /// Global Pedersen generators (create once, reuse for efficiency)
 static PEDERSEN_GENS: Lazy<PedersenGens> = Lazy::new(|| PedersenGens::default());
@@ -150,6 +155,44 @@ impl AmountCommitment {
         let result = hasher.finalize();
         hex::encode(result)
     }
+
+    /// Generate a Bulletproofs range proof that amount is in [0, 2^bits)
+    /// Returns the (proof_bytes, commitment_bytes) pair, where commitment must match self.commitment
+    pub fn prove_range(&self, amount: u64, bits: usize) -> Result<(Vec<u8>, [u8; 32])> {
+        if bits == 0 || bits > 64 { return Err(anyhow!("invalid range bit length")); }
+        let r_bytes = self.blinding_factor_bytes()?;
+        let r = Scalar::from_bytes_mod_order(r_bytes);
+
+        // Build transcript and produce proof
+        let mut transcript = Transcript::new(b"C0DL3-CT-RangeProof");
+        let (proof, committed): (bulletproofs::RangeProof, CompressedRistretto) =
+            bulletproofs::RangeProof::prove_single(
+                &BP_GENS,
+                &PEDERSEN_GENS,
+                &mut transcript,
+                amount,
+                r,
+                bits,
+            ).map_err(|e| anyhow!("range proof generation failed: {e:?}"))?;
+
+        let committed_bytes = committed.to_bytes();
+        if committed_bytes != self.commitment {
+            return Err(anyhow!("range proof commitment mismatch"));
+        }
+        Ok((proof.to_bytes(), committed_bytes))
+    }
+
+    /// Verify a Bulletproofs range proof against this commitment
+    pub fn verify_range(&self, proof_bytes: &[u8], bits: usize) -> Result<bool> {
+        if bits == 0 || bits > 64 { return Err(anyhow!("invalid range bit length")); }
+        let proof = bulletproofs::RangeProof::from_bytes(proof_bytes)
+            .map_err(|e| anyhow!("invalid range proof bytes: {e:?}"))?;
+        let mut transcript = Transcript::new(b"C0DL3-CT-RangeProof");
+        let committed = CompressedRistretto(self.commitment);
+        proof.verify_single(&BP_GENS, &PEDERSEN_GENS, &mut transcript, &committed, bits)
+            .map(|_| true)
+            .map_err(|e| anyhow!("range proof verification failed: {e:?}"))
+    }
 }
 
 #[cfg(test)]
@@ -246,5 +289,26 @@ mod tests {
         let point = commitment.to_point().unwrap();
         let compressed = point.compress().to_bytes();
         assert_eq!(commitment.commitment, compressed);
+    }
+
+    #[test]
+    fn test_range_proof_valid() {
+        let amount = 42u64;
+        let bits = 64usize;
+        let commitment = AmountCommitment::new(amount).unwrap();
+        let (proof_bytes, _cBytes) = commitment.prove_range(amount, bits).unwrap();
+        assert!(commitment.verify_range(&proof_bytes, bits).unwrap());
+    }
+
+    #[test]
+    fn test_range_proof_invalid_amount() {
+        let amount = 500u64;
+        let bits = 10usize; // range up to 1024
+        let commitment = AmountCommitment::new(amount).unwrap();
+        // Prove for a different amount (wrong witness) should fail to verify with this commitment
+        let other = AmountCommitment::new(amount + 1).unwrap();
+        let (proof_bytes, _c) = other.prove_range(amount + 1, bits).unwrap();
+        // Verification against original commitment should fail
+        assert!(!commitment.verify_range(&proof_bytes, bits).unwrap());
     }
 }

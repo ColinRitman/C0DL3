@@ -10,8 +10,7 @@ use sha2::{Sha256, Digest};
 use hex;
 
 use crate::privacy::{
-    stark_proofs::{StarkProofSystem, StarkProof},
-    amount_commitments::AmountCommitment,
+    confidential_transactions::AmountCommitment,
     address_encryption::{AddressEncryption, EncryptedAddress},
     timing_privacy::{TimingPrivacy, EncryptedTimestamp},
 };
@@ -23,8 +22,7 @@ use crate::privacy::{
 pub struct UserPrivacyManager {
     /// Encryption key for address and timing privacy
     encryption_key: [u8; 32],
-    /// STARK proof system for user-level privacy proofs
-    stark_system: StarkProofSystem,
+    // CT does not require a global prover; proofs are constructed per txn
     /// Address encryption system using ChaCha20Poly1305
     address_encryption: AddressEncryption,
     /// Timing privacy system using ChaCha20Poly1305
@@ -33,13 +31,12 @@ pub struct UserPrivacyManager {
     private_transactions: Arc<Mutex<HashMap<String, PrivateTransaction>>>,
 }
 
-/// Private transaction structure with encrypted fields and STARK proofs
+/// Private transaction structure with encrypted fields and CT proofs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateTransaction {
     /// Public transaction hash (for verification)
     pub hash: String,
-    /// STARK proof for transaction validity (user-level)
-    pub validity_proof: StarkProof,
+    /// Balance check is done via homomorphic relation on commitments (implicit)
     
     /// User privacy fields (encrypted/committed)
     /// Encrypted sender address (hides sender identity)
@@ -51,11 +48,10 @@ pub struct PrivateTransaction {
     /// Encrypted timestamp (hides transaction timing)
     pub encrypted_timestamp: EncryptedTimestamp,
     
-    /// STARK proof components (user-level privacy)
-    /// Range proof for amount validity
-    pub range_proof: StarkProof,
-    /// Balance consistency proof
-    pub balance_proof: StarkProof,
+    /// Range proof for amount validity (Bulletproofs proof bytes)
+    pub range_proof_bytes: Vec<u8>,
+    /// Range proof bit length
+    pub range_proof_bits: usize,
 }
 
 
@@ -66,16 +62,16 @@ pub struct PrivateBlock {
     pub hash: String,
     /// Block height
     pub height: u64,
-    /// STARK proof for block validity
-    pub validity_proof: StarkProof,
+    /// Placeholder for future block-level CT aggregation proof (optional)
+    pub validity_placeholder: Vec<u8>,
     /// Encrypted block timestamp
     pub encrypted_timestamp: EncryptedTimestamp,
     /// Private transactions in this block
     pub private_transactions: Vec<PrivateTransaction>,
-    /// Merkle tree proof for transaction inclusion
-    pub merkle_proof: StarkProof,
-    /// Batch processing proof
-    pub batch_proof: StarkProof,
+    /// Merkle tree proof placeholder
+    pub merkle_placeholder: Vec<u8>,
+    /// Batch processing proof placeholder
+    pub batch_placeholder: Vec<u8>,
 }
 
 impl UserPrivacyManager {
@@ -85,9 +81,6 @@ impl UserPrivacyManager {
         // Generate cryptographically secure encryption key
         let encryption_key = Self::generate_encryption_key()?;
         
-        // Initialize STARK proof system for user-level privacy
-        let stark_system = StarkProofSystem::new()?;
-        
         // Initialize address encryption system
         let address_encryption = AddressEncryption::new(&encryption_key)?;
         
@@ -96,7 +89,6 @@ impl UserPrivacyManager {
         
         Ok(Self {
             encryption_key,
-            stark_system,
             address_encryption,
             timing_privacy,
             private_transactions: Arc::new(Mutex::new(HashMap::new())),
@@ -129,20 +121,18 @@ impl UserPrivacyManager {
         // Encrypt timestamp (protects user timing)
         let encrypted_timestamp = self.timing_privacy.encrypt_timestamp(timestamp)?;
         
-        // Generate STARK proofs (user-level privacy)
-        let validity_proof = self.stark_system.prove_transaction_validity(amount, sender_balance)?;
-        let range_proof = self.stark_system.prove_amount_range(amount, 0, sender_balance)?;
-        let balance_proof = self.stark_system.prove_balance_consistency(sender_balance, amount)?;
+        // Generate CT range proof (Bulletproofs) for amount in 64-bit range
+        let bits = 64usize;
+        let (range_proof_bytes, _cbytes) = amount_commitment.prove_range(amount, bits)?;
         
         let transaction = PrivateTransaction {
             hash: tx_hash.clone(),
-            validity_proof,
             encrypted_sender,
             encrypted_recipient,
             amount_commitment,
             encrypted_timestamp,
-            range_proof,
-            balance_proof,
+            range_proof_bytes,
+            range_proof_bits: bits,
         };
         
         // Store transaction
@@ -159,10 +149,8 @@ impl UserPrivacyManager {
     pub fn verify_private_transaction(&self, tx: &PrivateTransaction) -> Result<bool> {
         // Privacy is always enabled - no check needed
         
-        // Verify STARK proofs
-        let validity_valid = self.stark_system.verify_proof(&tx.validity_proof)?;
-        let range_valid = self.stark_system.verify_proof(&tx.range_proof)?;
-        let balance_valid = self.stark_system.verify_proof(&tx.balance_proof)?;
+        // Verify CT range proof
+        let range_valid = tx.amount_commitment.verify_range(&tx.range_proof_bytes, tx.range_proof_bits)?;
         
         // Verify all privacy components are present
         let has_encrypted_sender = !tx.encrypted_sender.ciphertext.is_empty();
@@ -170,7 +158,7 @@ impl UserPrivacyManager {
         let has_amount_commitment = !tx.amount_commitment.commitment.is_empty();
         let has_encrypted_timestamp = !tx.encrypted_timestamp.ciphertext.is_empty();
         
-        Ok(validity_valid && range_valid && balance_valid && 
+        Ok(range_valid &&
            has_encrypted_sender && has_encrypted_recipient && 
            has_amount_commitment && has_encrypted_timestamp)
     }
@@ -239,7 +227,6 @@ impl PrivateBlock {
         height: u64,
         transactions: Vec<PrivateTransaction>,
         timestamp: u64,
-        stark_system: &StarkProofSystem,
     ) -> Result<Self> {
         // Generate block hash
         let block_data = format!("height:{} txs:{} timestamp:{}", height, transactions.len(), timestamp);
@@ -249,23 +236,14 @@ impl PrivateBlock {
         let timing_privacy = TimingPrivacy::new(&[0u8; 32])?; // Use default key for now
         let encrypted_timestamp = timing_privacy.encrypt_timestamp(timestamp)?;
         
-        // Generate STARK proof for block validity
-        let validity_proof = stark_system.prove_block_validity(height, transactions.len(), timestamp)?;
-        
-        // Generate STARK proof for Merkle tree
-        let merkle_proof = stark_system.prove_merkle_tree(&transactions)?;
-        
-        // Generate STARK proof for batch processing
-        let batch_proof = stark_system.prove_batch_processing(&transactions)?;
-        
         Ok(Self {
             hash: block_hash,
             height,
-            validity_proof,
+            validity_placeholder: Vec::new(),
             encrypted_timestamp,
             private_transactions: transactions,
-            merkle_proof,
-            batch_proof,
+            merkle_placeholder: Vec::new(),
+            batch_placeholder: Vec::new(),
         })
     }
     

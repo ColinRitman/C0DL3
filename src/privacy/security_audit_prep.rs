@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "deprecated-stark")]
+use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
 use crate::privacy::{
     user_privacy::PrivateTransaction,
-    production_stark_proofs::ProductionStarkProofSystem,
     advanced_privacy_features::AdvancedPrivacyFeatures,
     performance_optimization::OptimizedPrivacySystem,
 };

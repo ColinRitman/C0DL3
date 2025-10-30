@@ -12,9 +12,10 @@ use rayon::prelude::*;
 
 use crate::privacy::{
     user_privacy::UserPrivacyManager,
-    advanced_privacy_starks::AdvancedPrivacyStarkSystem,
-    production_stark_proofs::ProductionStarkProofSystem,
+    advanced_privacy_features::AdvancedPrivacyFeatures,
 };
+#[cfg(feature = "deprecated-stark")]
+use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
 
 /// Performance optimization manager for C0DL3 privacy system
 pub struct PerformanceOptimizationManager {
