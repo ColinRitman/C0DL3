@@ -50,11 +50,16 @@ spinners = "4.1"
 terminal_size = { version = "0.1", optional = true }
 rustyline = { version = "12.0", optional = true }
 
-# Elite-Level Privacy and Zero-Knowledge Dependencies
-# Production-ready cryptography for user-level privacy
-bulletproofs = { version = "4.0", optional = true }
+# Confidential Transactions - Bulletproofs Implementation
+# Production-ready Bulletproofs for amount privacy (highest ROI privacy feature)
+bulletproofs = "4.0"
+# Use curve25519-dalek-ng to match Bulletproofs' internal types
+curve25519-dalek-ng = "4.1"
+merlin = "3.0"
+once_cell = "1.18"
+
+# Encryption for address and timing privacy
 chacha20poly1305 = "0.10"
-curve25519-dalek = { version = "4.0", optional = true }
 rand = "0.8"
 thiserror = "1.0"
 
@@ -64,26 +69,6 @@ aes = "0.8"
 blake3 = "1.5"
 keccak = "0.1"
 ripemd = "0.1"
-
-# Production STARK Proof Systems
-# Boojum STARK prover (zkSync's production STARK system)
-# TODO: Fix Boojum repository URL - currently unavailable
-# boojum = { git = "https://github.com/matter-labs/boojum", branch = "main" }
-
-# Winter-crypto STARK implementation (production-ready)
-winter-crypto = "0.13.1"
-winter-math = "0.13.1"
-winter-utils = "0.13.1"
-winter-fri = "0.13.1"
-winter-air = "0.13.1"
-
-# Advanced Cryptographic Libraries
-# Arkworks ecosystem for advanced cryptographic primitives
-arkworks-gadgets = { version = "0.4.20", optional = true }
-arkworks-circuits = { version = "0.4.20", optional = true }
-arkworks-setups = { version = "1.2.2", optional = true }
-arkworks-mimc = { version = "0.3.0", optional = true }
-merlin = "3.0"
 
 # Phase 4: Performance Optimization Dependencies
 rayon = "1.8"
@@ -100,11 +85,5 @@ dialoguer = { version = "0.11" }
 terminal_size = { version = "0.1" }
 rustyline = { version = "12.0" }
 
-[target.'cfg(feature = "exp-privacy")'.dependencies]
-# Heavy zk libraries gated
-bulletproofs = { version = "4.0" }
-curve25519-dalek = { version = "4.0" }
-arkworks-gadgets = { version = "0.4.20" }
-arkworks-circuits = { version = "0.4.20" }
-arkworks-setups = { version = "1.2.2" }
-arkworks-mimc = { version = "0.3.0" }
+# Note: xfg-stark is kept for Fuego L1 integration (HEAT/COLD proofs)
+# All other STARK/SNARK dependencies removed in favor of Bulletproofs CT

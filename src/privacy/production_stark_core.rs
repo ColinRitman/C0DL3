@@ -1,20 +1,22 @@
 // Production STARK Core Implementation
-// Phase 1: Core STARK Infrastructure
-// Implements production-grade STARK proof system using winter-crypto
+// DEPRECATED: This module is being replaced by Bulletproofs Confidential Transactions
+// Kept only for reference - will be removed in future phases
+//
+// This file is feature-gated and only compiles with "deprecated-stark" feature
 
+#[cfg(feature = "deprecated-stark")]
 use anyhow::{Result, anyhow};
+#[cfg(feature = "deprecated-stark")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "deprecated-stark")]
 use std::time::{SystemTime, UNIX_EPOCH};
-use winter_crypto::hashers::Blake3_256;
-use winter_fri::FriOptions;
-use winter_air::ProofOptions;
-use winter_math::{FieldElement, StarkField};
-use winter_utils::Serializable;
 
-// Use a concrete field type for production
-type Field = winter_math::fields::f64::BaseElement;
+// NOTE: winter-crypto imports removed - STARK implementation was placeholder
+// Real implementation uses Bulletproofs in confidential_transactions.rs
 
+#[cfg(feature = "deprecated-stark")]
 /// Production STARK proof types for C0DL3
+/// DEPRECATED: Use Bulletproofs CT instead
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProofType {
     /// Transaction validity proof

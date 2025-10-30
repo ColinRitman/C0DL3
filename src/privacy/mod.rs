@@ -1,17 +1,26 @@
 // Privacy module for zkC0DL3
 // All transactions are private by default
+// MIGRATION: Moving from STARK placeholders to Bulletproofs Confidential Transactions
 
 use serde::{Deserialize, Serialize};
 
 pub mod mining_privacy;
 pub mod user_privacy;
-pub mod stark_proofs;
 pub mod amount_commitments;
 pub mod address_encryption;
 pub mod timing_privacy;
+pub mod confidential_transactions; // NEW: Bulletproofs CT implementation
+
+// STARK modules - DEPRECATED (placeholders only, being replaced by Bulletproofs CT)
+#[cfg(feature = "deprecated-stark")]
+pub mod stark_proofs;
+#[cfg(feature = "deprecated-stark")]
 pub mod production_stark_proofs;
+#[cfg(feature = "deprecated-stark")]
 pub mod production_stark_core;
+#[cfg(feature = "deprecated-stark")]
 pub mod transaction_privacy_starks;
+#[cfg(feature = "deprecated-stark")]
 pub mod advanced_privacy_starks;
 pub mod advanced_privacy_features;
 pub mod performance_optimization;
@@ -48,53 +57,21 @@ pub use user_privacy::{
     DecryptedTransaction,
 };
 
-pub use stark_proofs::StarkProof;
+// Confidential Transactions exports (NEW - primary privacy system)
+pub use confidential_transactions::{
+    AmountCommitment,
+};
 
+// STARK exports - DEPRECATED (feature-gated)
+#[cfg(feature = "deprecated-stark")]
+pub use stark_proofs::StarkProof;
+#[cfg(feature = "deprecated-stark")]
 pub use stark_proofs::StarkProofSystem;
 
-// Production STARK exports
-pub use production_stark_core::{
-    ProductionStarkProofSystem,
-    ProductionStarkProof,
-    ProofType,
-    ProofMetadata,
-    C0dl3ConstraintSystem,
-    Constraint,
-    ConstraintType,
-};
-
-// Transaction Privacy STARK exports (avoid re-exporting names already in scope)
-pub use transaction_privacy_starks::{
-    TransactionPrivacyStarkSystem,
-    TransactionPrivacyProof,
-    TransactionPrivacyConfig,
-    TransactionPrivacyProofType,
-    TransactionPrivacyMetadata,
-};
-
-// Advanced Privacy STARK exports (trim duplicates)
-pub use advanced_privacy_starks::{
-    AdvancedPrivacyStarkSystem,
-    AdvancedPrivacyConfig,
-    AdvancedPrivacyMetrics,
-    AdvancedPrivacyProofType,
-    CrossChainPrivacyGuarantees,
-    CrossChainPrivacyMetadata,
-    MiningPrivacyProof,
-    MiningPrivacyGuarantees,
-    MiningPrivacyMetadata,
-    PrivacyAggregationProof,
-    AggregationMetadata,
-    AggregationPrivacyGuarantees,
-    RecursivePrivacyProof,
-    RecursionMetadata,
-    RecursionPrivacyGuarantees,
-    PrivacyProofRequest,
-};
-
+// Legacy amount commitments (being replaced by confidential_transactions)
 pub use amount_commitments::{
-    AmountCommitment,
-    RangeProof,
+    AmountCommitment as LegacyAmountCommitment, // Old placeholder version
+    RangeProof as LegacyRangeProof,
     CommitmentBatch,
 };
 
