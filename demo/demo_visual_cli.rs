@@ -1,5 +1,5 @@
-// Standalone Demo of Professional Visual CLI
-// A sleek and visually pleasing interactive console interface
+// Standalone Demo of Visual CLI
+// A sleek interactive console interface for C0DL3 + Fuego 
 
 use std::io::{self, Write};
 use colored::*;
@@ -64,21 +64,21 @@ impl VisualCliDemo {
             r#"
     ╔══════════════════════════════════════════════════════════════╗
     ║                                                              ║
-    ║    🎨 PROFESSIONAL VISUAL CLI INTERFACE 🎨                  ║
+    ║               ICE            &           FIRE                ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
             "#,
             r#"
     ╔══════════════════════════════════════════════════════════════╗
     ║                                                              ║
-    ║    🚀 C0DL3 zkSync + Fuego L1 Mining Interface 🚀         ║
+    ║      🚀 C0DL3 zkSync + Fuego L1 Mining Interface 🚀         ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
             "#,
             r#"
     ╔══════════════════════════════════════════════════════════════╗
     ║                                                              ║
-    ║    ⛏️ Mining • 🛡️ Validation • 📊 Monitoring ⛏️           ║
+    ║      ⛏️ Mining •  🛡️ Validation •  📊 Monitoring ⛏️         ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
             "#,
@@ -129,18 +129,18 @@ impl VisualCliDemo {
         self.term.clear_screen()?;
         
         println!("{}", "╔══════════════════════════════════════════════════════════════╗".bright_cyan());
-        println!("{}", "║                🌟 WELCOME TO THE FUTURE 🌟                ║".bright_cyan());
+        println!("{}", "║                 🌟 WELCOME TO THE FUTURE 🌟                 ║".bright_cyan());
         println!("{}", "╠══════════════════════════════════════════════════════════════╣".bright_cyan());
         println!("{}", "║                                                              ║".bright_cyan());
-        println!("{}", "║  🎨 A professionally sleek console interface               ║".bright_white().bold());
-        println!("{}", "║     for blockchain management                              ║".bright_white().bold());
+        println!("{}", "║         ⊰ Advanced zkC0DLᴣ + XFG console interface           ║".bright_white().bold());
+        println!("{}", "║              for multiple blockchain management ⊱            ║".bright_white().bold());
         println!("{}", "║                                                              ║".bright_cyan());
-        println!("{}", "║  🚀 C0DL3 zkSync Hyperchain + Fuego L1 Mining              ║".bright_green());
-        println!("{}", "║  ⛏️  Advanced Mining • 🛡️  Validator Management            ║".bright_yellow());
-        println!("{}", "║  📊 Real-time Monitoring • 🎮 Interactive Control         ║".bright_magenta());
-        println!("{}", "║  🎨 Stunning Visuals • ⚡ Lightning Fast                   ║".bright_blue());
+        println!("{}", "║       𒊹 zkC0DLℨ Hyperchain + 🔥 Fuego L1 Mining             ║".bright_green());
+        println!("{}", "║     ⛏️  Advanced Mining  𝒳 🛡️ Validator Management          ║".bright_yellow());
+        println!("{}", "║      📊 Real-time Monitoring • 🎮 Interactive Control       ║".bright_magenta());
+        println!("{}", "║        𛱠  Stunning Visuals whoa! • ⚡ Lightning Fast         ║".bright_blue());
         println!("{}", "║                                                              ║".bright_cyan());
-        println!("{}", "║  🌟 Professional blockchain management interface 🌟        ║".bright_white().bold());
+        println!("{}", "║                                                              ║".bright_white().bold());
         println!("{}", "╚══════════════════════════════════════════════════════════════╝".bright_cyan());
         
         println!();
@@ -201,7 +201,7 @@ impl VisualCliDemo {
 
     async fn show_live_header(&self) -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", "╔══════════════════════════════════════════════════════════════╗".bright_cyan());
-        println!("{}", "║                🎨 PROFESSIONAL VISUAL CLI 🎨                ║".bright_cyan());
+        println!("{}", "║                🎨 zkC0DL3+Fuego VISUAL CLI 🎨               ║".bright_cyan());
         println!("{}", "╠══════════════════════════════════════════════════════════════╣".bright_cyan());
         
         // Live status indicators
@@ -417,7 +417,7 @@ impl VisualCliDemo {
         
         let options = vec![
             "👑 View Eldorados (C0DL3 Validators)",
-            "🔥 View Elderfiers (Fuego Validators)",
+            "🔥 View Elderfiers (Fuego Verifiers)",
             "💰 Stake Tokens to Validator",
             "📊 Validator Performance",
             "🏆 Validator Rankings",
@@ -446,7 +446,7 @@ impl VisualCliDemo {
     async fn show_eldorados(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.term.clear_screen()?;
         
-        println!("{}", "👑 C0DL3 ELDORADOS (Validators)".bright_yellow().bold());
+        println!("{}", "👑 C0DL3 ELDERADOS (Validators)".bright_yellow().bold());
         println!("{}", "═══════════════════════════════════════════════════════════════".bright_yellow());
         println!();
         
@@ -477,26 +477,26 @@ impl VisualCliDemo {
     async fn show_elderfiers(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.term.clear_screen()?;
         
-        println!("{}", "🔥 Fuego ELDERFIERS (Validators)".bright_red().bold());
+        println!("{}", "🔥 Fuego ELDERFIERS (Verifiers)".bright_red().bold());
         println!("{}", "═══════════════════════════════════════════════════════════════".bright_red());
         println!();
         
         println!("{}", "1. 0x3333333333333333333333333333333333333333".bright_white());
         println!("{}", "   Status: Active".bright_green());
-        println!("{}", "   Stake: 1,500,000 tokens".bright_white());
+        println!("{}", "   Stake: 800 XFG".bright_white());
         println!("{}", "   Uptime: 1,800 seconds".bright_white());
         println!("{}", "   Blocks Validated: 75".bright_white());
-        println!("{}", "   Rewards: 25,000 tokens".bright_white());
+        println!("{}", "   Rewards: 250 XFG".bright_white());
         println!("{}", "   Elderfier Level: 3".bright_white());
         println!("{}", "   Reputation: 0.92".bright_white());
         println!();
         
         println!("{}", "2. 0x4444444444444444444444444444444444444444".bright_white());
         println!("{}", "   Status: Active".bright_green());
-        println!("{}", "   Stake: 3,000,000 tokens".bright_white());
+        println!("{}", "   Stake: 800 XFG".bright_white());
         println!("{}", "   Uptime: 5,400 seconds".bright_white());
         println!("{}", "   Blocks Validated: 225".bright_white());
-        println!("{}", "   Rewards: 75,000 tokens".bright_white());
+        println!("{}", "   Rewards: 700 XFG".bright_white());
         println!("{}", "   Elderfier Level: 5".bright_white());
         println!("{}", "   Reputation: 0.97".bright_white());
         
@@ -514,8 +514,8 @@ impl VisualCliDemo {
             .interact()?;
 
         if confirmed {
-            println!("{}", "👋 Thank you for using Professional Visual CLI!".bright_cyan().bold());
-            println!("{}", "🌟 Professional blockchain management interface 🌟".bright_white().bold());
+            println!("{}", "👋 Thanks for using zkC0DL3 + Fuego Visual CLI!".bright_cyan().bold());
+            println!("{}", "ᛜ Multi blockchain management interface ᛜ".bright_white().bold());
             std::process::exit(0);
         }
         
