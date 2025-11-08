@@ -1,5 +1,4 @@
 // Private Merge-Mining Rewards Implementation
-// Highest ROI privacy feature for zkC0DL3
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
