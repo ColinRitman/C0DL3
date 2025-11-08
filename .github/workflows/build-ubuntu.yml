@@ -2,7 +2,7 @@ name: Ubuntu CI
 
 on:
   push:
-    branches: [ main, develop, feature/* ]
+    branches: [ main, develop, zkc0dl3, feature/* ]
   pull_request:
     branches: [ main, develop ]
 
