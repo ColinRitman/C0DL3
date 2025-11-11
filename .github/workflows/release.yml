@@ -1,7 +1,8 @@
 name: Release
 
 on:
-  push: [zkc0dl3]
+  push: 
+     branches: [ zkc0dl3 ]
     tags:
       - 'v*.*.*'
 
