@@ -23,7 +23,7 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Add Rust targets (note: linking for some targets may still fail on Linux)
+    - name: Add Rust targets note linking for some targets may still fail on Linux
       run: |
         rustup target add x86_64-unknown-linux-gnu \
                           x86_64-pc-windows-gnu \
