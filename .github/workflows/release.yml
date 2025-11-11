@@ -1,8 +1,9 @@
 name: Release
- 
- on:
-   push: 
-      branches: [ zkc0dl3 ]
+
+on:
+  push:
+    branches:
+      - zkc0dl3
     tags:
       - 'v*.*.*'
 
@@ -10,6 +11,8 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    # only run the release job for tag pushes
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
     - name: Checkout repository
@@ -20,47 +23,66 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Add Rust targets (note: linking for some targets may still fail on Linux)
+      run: |
+        rustup target add x86_64-unknown-linux-gnu \
+                          x86_64-pc-windows-gnu \
+                          x86_64-apple-darwin \
+                          aarch64-apple-darwin || true
+
     - name: Build release binaries
       run: |
-        # Build for multiple targets
+        set -eux
+        # native Linux
         cargo build --release --no-default-features
-        cargo build --release --no-default-features --target x86_64-unknown-linux-gnu
-        cargo build --release --no-default-features --target x86_64-pc-windows-gnu
-        cargo build --release --no-default-features --target x86_64-apple-darwin
-        cargo build --release --no-default-features --target aarch64-apple-darwin
+
+        # additional targets — these will often fail on ubuntu-latest without extra toolchains/linkers
+        cargo build --release --no-default-features --target x86_64-unknown-linux-gnu || true
+        cargo build --release --no-default-features --target x86_64-pc-windows-gnu || true
+        cargo build --release --no-default-features --target x86_64-apple-darwin || true
+        cargo build --release --no-default-features --target aarch64-apple-darwin || true
 
     - name: Create release archives
       run: |
-        # Create release directory
+        set -eux
         mkdir -p release
 
-        # Linux x86_64
+        # Linux x86_64 (native)
         cp target/release/codl3-zksync release/codl3-zksync-linux-x86_64
         tar -czf release/codl3-zksync-linux-x86_64.tar.gz -C release codl3-zksync-linux-x86_64
 
-        # Linux x86_64 (cross)
-        cp target/x86_64-unknown-linux-gnu/release/codl3-zksync release/codl3-zksync-linux-x86_64-cross
-        tar -czf release/codl3-zksync-linux-x86_64-cross.tar.gz -C release codl3-zksync-linux-x86_64-cross
+        # Linux x86_64 (cross target dir)
+        if [ -f target/x86_64-unknown-linux-gnu/release/codl3-zksync ]; then
+          cp target/x86_64-unknown-linux-gnu/release/codl3-zksync release/codl3-zksync-linux-x86_64-cross
+          tar -czf release/codl3-zksync-linux-x86_64-cross.tar.gz -C release codl3-zksync-linux-x86_64-cross
+        fi
 
-        # Windows x86_64
-        cp target/x86_64-pc-windows-gnu/release/codl3-zksync.exe release/codl3-zksync-windows-x86_64.exe
-        zip release/codl3-zksync-windows-x86_64.zip release/codl3-zksync-windows-x86_64.exe
+        # Windows x86_64 (cross)
+        if [ -f target/x86_64-pc-windows-gnu/release/codl3-zksync.exe ]; then
+          cp target/x86_64-pc-windows-gnu/release/codl3-zksync.exe release/codl3-zksync-windows-x86_64.exe
+          zip -j release/codl3-zksync-windows-x86_64.zip release/codl3-zksync-windows-x86_64.exe
+        fi
 
         # macOS Intel
-        cp target/x86_64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-intel
-        tar -czf release/codl3-zksync-macos-intel.tar.gz -C release codl3-zksync-macos-intel
+        if [ -f target/x86_64-apple-darwin/release/codl3-zksync ]; then
+          cp target/x86_64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-intel
+          tar -czf release/codl3-zksync-macos-intel.tar.gz -C release codl3-zksync-macos-intel
+        fi
 
         # macOS Apple Silicon
-        cp target/aarch64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-apple-silicon
-        tar -czf release/codl3-zksync-macos-apple-silicon.tar.gz -C release codl3-zksync-macos-apple-silicon
+        if [ -f target/aarch64-apple-darwin/release/codl3-zksync ]; then
+          cp target/aarch64-apple-darwin/release/codl3-zksync release/codl3-zksync-macos-apple-silicon
+          tar -czf release/codl3-zksync-macos-apple-silicon.tar.gz -C release codl3-zksync-macos-apple-silicon
+        fi
 
-    - name: Create GitHub release
+    - id: create_release
+      name: Create GitHub release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ github.ref_name }}
         body: |
           ## C0DL3 zkSync Node Release ${{ github.ref_name }}
 
@@ -90,11 +112,10 @@ jobs:
 
           ### Configuration
           See the testnet setup guide in `testnet/README.md` for configuration examples.
-
         draft: false
         prerelease: false
 
-    - name: Upload release assets
+    - name: Upload Linux release
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
