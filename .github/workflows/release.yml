@@ -12,7 +12,7 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     # only run the release job for tag pushes
-    if: startsWith(github.ref, 'refs/tags/')
+    # if: startsWith(github.ref, 'refs/tags/')
 
     steps:
     - name: Checkout repository
