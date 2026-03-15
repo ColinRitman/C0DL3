@@ -15,7 +15,7 @@ use crate::privacy::user_privacy::UserPrivacyManager;
 use crate::privacy::user_privacy::PrivateTransaction;
 #[cfg(feature = "deprecated-stark")]
 use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
-use crate::privacy::advanced_privacy_features::AdvancedPrivacyFeatures;
+// advanced_privacy_features module removed — see confidential_transactions for CT implementation
 
 /// Performance-optimized privacy system
 pub struct OptimizedPrivacySystem {

@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
 use rand::RngCore;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Nonce as ChaChaNonce, Key as ChaChaKey,
+};
 use crate::security::{SecureRng, RpcValidator};
 
 /// Encrypted address structure
@@ -167,81 +171,42 @@ impl AddressEncryption {
         self.generate_secure_nonce()
     }
     
-    /// Encrypt data using ChaCha20Poly1305 (simplified implementation)
-    /// In production, this would use actual ChaCha20Poly1305 encryption
+    /// Encrypt data using real ChaCha20Poly1305 AEAD
+    ///
+    /// # Post-Quantum Note
+    /// ChaCha20Poly1305 is a symmetric AEAD cipher with 256-bit key.
+    /// Post-quantum safe (Grover's halves to 128-bit — still secure).
     fn encrypt_data(&self, data: &[u8], nonce: &[u8; 12]) -> Result<(Vec<u8>, [u8; 16])> {
-        // Simplified encryption: XOR with key-derived stream
-        let key_stream = self.generate_key_stream(nonce, data.len())?;
-        let mut ciphertext = Vec::new();
-        
-        for (i, &byte) in data.iter().enumerate() {
-            ciphertext.push(byte ^ key_stream[i]);
-        }
-        
-        // Generate authentication tag (simplified)
-        let tag = self.generate_tag(&ciphertext, nonce)?;
-        
+        let key = ChaChaKey::from_slice(&self.encryption_key);
+        let cipher = ChaCha20Poly1305::new(key);
+        let chacha_nonce = ChaChaNonce::from_slice(nonce);
+
+        let ciphertext_with_tag = cipher.encrypt(chacha_nonce, data)
+            .map_err(|e| anyhow!("ChaCha20Poly1305 encryption failed: {}", e))?;
+
+        // ChaCha20Poly1305 appends 16-byte Poly1305 tag to ciphertext
+        let tag_start = ciphertext_with_tag.len() - 16;
+        let ciphertext = ciphertext_with_tag[..tag_start].to_vec();
+        let mut tag = [0u8; 16];
+        tag.copy_from_slice(&ciphertext_with_tag[tag_start..]);
+
         Ok((ciphertext, tag))
     }
-    
-    /// Decrypt data using ChaCha20Poly1305 (simplified implementation)
-    fn decrypt_data(&self, ciphertext: &[u8], nonce: &[u8; 12], tag: &[u8; 16]) -> Result<Vec<u8>> {
-        // Verify tag (simplified)
-        let expected_tag = self.generate_tag(ciphertext, nonce)?;
-        if expected_tag != *tag {
-            return Err(anyhow!("Authentication tag mismatch"));
-        }
-        
-        // Decrypt using XOR (simplified)
-        let key_stream = self.generate_key_stream(nonce, ciphertext.len())?;
-        let mut plaintext = Vec::new();
-        
-        for (i, &byte) in ciphertext.iter().enumerate() {
-            plaintext.push(byte ^ key_stream[i]);
-        }
-        
-        Ok(plaintext)
-    }
-    
-    /// Generate key stream for encryption/decryption
-    fn generate_key_stream(&self, nonce: &[u8; 12], length: usize) -> Result<Vec<u8>> {
-        // Simplified key stream generation
-        // In production, this would use actual ChaCha20 stream cipher
-        let mut hasher = Sha256::new();
-        hasher.update(&self.encryption_key);
-        hasher.update(nonce);
-        hasher.update(&self.key_context.as_bytes());
-        
-        let mut key_stream = Vec::new();
-        let mut counter = 0u64;
-        
-        while key_stream.len() < length {
-            let mut round_hasher = Sha256::new();
 
-            round_hasher.update(hasher.clone().finalize());
-            round_hasher.update(counter.to_le_bytes());
-            
-            key_stream.extend_from_slice(&round_hasher.finalize());
-            counter += 1;
-        }
-        
-        key_stream.truncate(length);
-        Ok(key_stream)
-    }
-    
-    /// Generate authentication tag
-    fn generate_tag(&self, ciphertext: &[u8], nonce: &[u8; 12]) -> Result<[u8; 16]> {
-        // Simplified tag generation
-        // In production, this would use actual Poly1305 authentication
-        let mut hasher = Sha256::new();
-        hasher.update(&self.encryption_key);
-        hasher.update(nonce);
-        hasher.update(ciphertext);
-        
-        let hash = hasher.finalize();
-        let mut tag = [0u8; 16];
-        tag.copy_from_slice(&hash[..16]);
-        Ok(tag)
+    /// Decrypt data using real ChaCha20Poly1305 AEAD
+    fn decrypt_data(&self, ciphertext: &[u8], nonce: &[u8; 12], tag: &[u8; 16]) -> Result<Vec<u8>> {
+        let key = ChaChaKey::from_slice(&self.encryption_key);
+        let cipher = ChaCha20Poly1305::new(key);
+        let chacha_nonce = ChaChaNonce::from_slice(nonce);
+
+        // Reconstruct ciphertext||tag for ChaCha20Poly1305 decrypt
+        let mut ciphertext_with_tag = ciphertext.to_vec();
+        ciphertext_with_tag.extend_from_slice(tag);
+
+        let plaintext = cipher.decrypt(chacha_nonce, ciphertext_with_tag.as_ref())
+            .map_err(|_| anyhow!("Authentication tag mismatch"))?;
+
+        Ok(plaintext)
     }
 }
 
@@ -340,15 +305,15 @@ mod tests {
     #[test]
     fn test_address_encryption_creation() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
         assert!(true);
     }
     
     #[test]
     fn test_sender_address_encryption() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
-        let encrypted = encryption.encrypt_sender("sender_address_123").unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
+        let encrypted = encryption.encrypt_sender("0xsender_address_1230000").unwrap();
         
         assert!(!encrypted.ciphertext.is_empty());
         assert_ne!(encrypted.nonce, [0u8; 12]);
@@ -360,7 +325,7 @@ mod tests {
     #[test]
     fn test_recipient_address_encryption() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
         let encrypted = encryption.encrypt_recipient("recipient_address_456").unwrap();
         
         assert!(!encrypted.ciphertext.is_empty());
@@ -373,8 +338,8 @@ mod tests {
     #[test]
     fn test_address_decryption() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
-        let original_address = "test_address_789";
+        let mut encryption = AddressEncryption::new(&key).unwrap();
+        let original_address = "0xtest_address_789000000";
         let encrypted = encryption.encrypt_sender(original_address).unwrap();
         let decrypted = encryption.decrypt_address(&encrypted).unwrap();
         
@@ -384,8 +349,8 @@ mod tests {
     #[test]
     fn test_address_verification() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
-        let encrypted = encryption.encrypt_sender("test_address").unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
+        let encrypted = encryption.encrypt_sender("0xtest_address_000000000").unwrap();
         let is_valid = encryption.verify_address(&encrypted).unwrap();
         
         assert!(is_valid);
@@ -394,8 +359,8 @@ mod tests {
     #[test]
     fn test_address_hash_generation() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
-        let encrypted = encryption.encrypt_sender("test_address").unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
+        let encrypted = encryption.encrypt_sender("0xtest_address_000000000").unwrap();
         let hash = encryption.generate_address_hash(&encrypted);
         
         assert!(!hash.is_empty());
@@ -405,12 +370,12 @@ mod tests {
     #[test]
     fn test_address_encryption_batch() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
         
         let encrypted_addresses = vec![
-            encryption.encrypt_sender("sender1").unwrap(),
-            encryption.encrypt_recipient("recipient1").unwrap(),
-            encryption.encrypt_sender("sender2").unwrap(),
+            encryption.encrypt_sender("0xsender_address_000001").unwrap(),
+            encryption.encrypt_recipient("0xrecipient_addr_000001").unwrap(),
+            encryption.encrypt_sender("0xsender_address_000002").unwrap(),
         ];
         
         let batch = AddressEncryptionBatch::new(encrypted_addresses).unwrap();
@@ -423,7 +388,7 @@ mod tests {
     #[test]
     fn test_empty_address_error() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
         let result = encryption.encrypt_sender("");
         
         assert!(result.is_err());
@@ -432,8 +397,8 @@ mod tests {
     #[test]
     fn test_invalid_decryption() {
         let key = [1u8; 32];
-        let encryption = AddressEncryption::new(&key).unwrap();
-        let encrypted = encryption.encrypt_sender("test_address").unwrap();
+        let mut encryption = AddressEncryption::new(&key).unwrap();
+        let encrypted = encryption.encrypt_sender("0xtest_address_000000000").unwrap();
         
         // Modify the tag to make it invalid
         let mut invalid_encrypted = encrypted.clone();

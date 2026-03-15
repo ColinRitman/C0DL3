@@ -83,8 +83,8 @@ pub enum C0dl3EventType {
     ColdTokenMint,
     /// Privacy-preserving transaction
     PrivateTransaction,
-    /// Merge mining proof
-    MergeMiningProof,
+    /// Rollup state root for Elderfier relay
+    StateRootRelay,
     /// STARK proof verification
     StarkProofVerification,
 }

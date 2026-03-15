@@ -18,6 +18,10 @@ cli-ui = []
 exp-privacy = []
 # Temporary gate for legacy STARK modules (kept out of build by default)
 deprecated-stark = []
+# Enable real SP1 proof verification (requires sp1-sdk; heavy dependency)
+# Without this: mock mode (accept any proof bytes — testnet only)
+# With this: cryptographic verification via SP1 SDK
+real-proofs = ["dep:sp1-sdk", "dep:bincode"]
 
 [dependencies]
 anyhow = "1.0.99"
@@ -65,19 +69,17 @@ chacha20poly1305 = "0.10"
 rand = "0.8"
 thiserror = "1.0"
 
-# CN-UPX/2 Mining Algorithm Dependencies
-# CryptoNight UPX/2 implementation for Fuego compatibility
-aes = "0.8"
-blake3 = "1.5"
-keccak = "0.1"
-ripemd = "0.1"
-
 # Phase 4: Performance Optimization Dependencies
 rayon = "1.8"
 num_cpus = "1.16"
 
 # XFG Winterfell STARK Integration
 xfg-stark = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
+
+# SP1 sovereign prover (optional — only needed for real proof verification)
+# Default build (testnet) uses mock verification; mainnet enables this.
+sp1-sdk = { version = "6.0", optional = true }
+bincode = { version = "1.3", optional = true }
 
 [target.'cfg(feature = "cli-ui")'.dependencies]
 # Pull UI crates only when cli-ui feature is enabled

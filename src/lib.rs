@@ -2,7 +2,6 @@
 // Production-grade zkSync Hyperchains with elite-level privacy
 
 pub mod privacy;
-pub mod mining;
 // Remove fuego_daemon from lib to avoid referencing bin-only types
 // pub mod fuego_daemon;
 
@@ -19,6 +18,15 @@ pub mod cli_interface;
 
 // Expose security utilities to library users
 pub mod security;
+
+// Prover economics: HEAT subsidy schedule, gas splitting, prover registry
+pub mod economics;
+
+// Token modules: CD/COLDAO (XFG-lock interest + governance)
+pub mod tokens;
+
+// SP1 sovereign prover: BlockExecutionClaim, proof verification (mock/SP1), precompile addresses
+pub mod proving;
 
 // Re-export main privacy components
 pub use privacy::*;

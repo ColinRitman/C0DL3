@@ -11,7 +11,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::privacy::production_stark_proofs::ProductionStarkProofSystem;
 use crate::privacy::{
     user_privacy::PrivateTransaction,
-    advanced_privacy_features::AdvancedPrivacyFeatures,
     performance_optimization::OptimizedPrivacySystem,
 };
 

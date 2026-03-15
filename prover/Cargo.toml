@@ -1,0 +1,48 @@
+[package]
+name = "coldl3-prover"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone prover service for zkC0DL3 — generates SP1 execution proofs"
+
+[[bin]]
+name = "coldl3-prover"
+path = "src/main.rs"
+
+# Build: cargo build --release
+# Run:   ./target/release/coldl3-prover --node-url http://localhost:8545
+
+[dependencies]
+# SP1 SDK — host-side prover (generates proofs by running guest program in zkVM)
+sp1-sdk = { version = "6.0", features = ["blocking"] }
+
+# Serialization — must match guest program's format
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# HTTP client for node RPC
+reqwest = { version = "0.12", features = ["json"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Error handling
+anyhow = "1.0"
+
+# Hex encoding
+hex = "0.4"
+
+# Crypto (for computing state roots locally to verify witness)
+sha2 = "0.10"
+bulletproofs = "4.0"
+curve25519-dalek-ng = "4.1"
+
+# Time
+chrono = "0.4"

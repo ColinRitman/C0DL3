@@ -49,41 +49,25 @@ impl AmountCommitment {
         if amount == 0 {
             return Err(anyhow!("Amount cannot be zero"));
         }
-        
+
         // Generate random blinding factor (32 bytes)
         let mut rng = thread_rng();
         let mut blinding_bytes = [0u8; 32];
         rng.fill_bytes(&mut blinding_bytes);
-        
-        // Convert amount to bytes (little-endian u64 = 8 bytes)
-        let amount_bytes = amount.to_le_bytes();
+
+        // Convert amount to Scalar (little-endian u64 → 32-byte padded → mod order)
         let mut amount_padded = [0u8; 32];
-        amount_padded[..8].copy_from_slice(&amount_bytes);
-        
-        // Create Pedersen commitment using bulletproofs PedersenGens
-        // PedersenGens internally uses curve25519-dalek-ng scalars
-        // We need to convert our amount and blinding to the correct scalar types
-        // For now, use a helper that bulletproofs provides or create commitment manually
-        
-        // TEMPORARY WORKAROUND: 
-        // bulletproofs PedersenGens::commit expects Scalar types internally
-        // Until we resolve scalar type compatibility, we'll use a hash-based commitment
-        // This MUST be replaced with real Pedersen commitments in Phase 1 completion
-        
-        // For proper implementation, we need to:
-        // 1. Convert amount to bulletproofs scalar type
-        // 2. Convert blinding_bytes to bulletproofs scalar type  
-        // 3. Call PEDERSEN_GENS.commit(value_scalar, blinding_scalar)
-        
-        // For Phase 1 initial implementation, using hash-based commitment structure
-        // This allows us to test the API and structure, then swap in real commitments
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(b"PedersenCommitment");
-        hasher.update(&amount.to_le_bytes());
-        hasher.update(&blinding_bytes);
-        let commitment_bytes: [u8; 32] = hasher.finalize()[..32].try_into().unwrap();
-        
+        amount_padded[..8].copy_from_slice(&amount.to_le_bytes());
+        let value_scalar = Scalar::from_bytes_mod_order(amount_padded);
+
+        // Convert blinding factor to Scalar
+        let blinding_scalar = Scalar::from_bytes_mod_order(blinding_bytes);
+
+        // Real Pedersen commitment: C = v*B + r*B_blinding
+        // where B and B_blinding are the Pedersen generator points
+        let commitment_point = PEDERSEN_GENS.commit(value_scalar, blinding_scalar);
+        let commitment_bytes = commitment_point.compress().to_bytes();
+
         Ok(Self {
             commitment: commitment_bytes,
             blinding_factor: blinding_bytes.to_vec(),
@@ -101,50 +85,71 @@ impl AmountCommitment {
     }
     
     /// Verify commitment matches amount and blinding factor
-    /// 
-    /// TEMPORARY: Uses hash-based verification until proper Pedersen commitments
-    /// This will be replaced with real Pedersen commitment verification
+    ///
+    /// Recomputes the Pedersen commitment C = v*B + r*B_blinding
+    /// and checks it matches the stored commitment bytes.
     pub fn verify(&self, amount: u64) -> Result<bool> {
         let blinding_bytes = self.blinding_factor_bytes()?;
-        
-        // Recreate commitment using same method (temporary)
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(b"PedersenCommitment");
-        hasher.update(&amount.to_le_bytes());
-        hasher.update(&blinding_bytes);
-        let expected: [u8; 32] = hasher.finalize()[..32].try_into().unwrap();
-        
-        Ok(self.commitment == expected)
+
+        // Recompute Pedersen commitment with same amount and blinding
+        let mut amount_padded = [0u8; 32];
+        amount_padded[..8].copy_from_slice(&amount.to_le_bytes());
+        let value_scalar = Scalar::from_bytes_mod_order(amount_padded);
+        let blinding_scalar = Scalar::from_bytes_mod_order(blinding_bytes);
+
+        let expected_point = PEDERSEN_GENS.commit(value_scalar, blinding_scalar);
+        let expected_bytes = expected_point.compress().to_bytes();
+
+        Ok(self.commitment == expected_bytes)
     }
     
-    /// Get commitment point (for homomorphic operations)
-    /// 
-    /// TEMPORARY: Placeholder until proper Pedersen commitments implemented
-    /// Will return actual RistrettoPoint once scalar type compatibility is resolved
-    pub fn to_point(&self) -> Result<()> {
-        // TODO: Convert commitment bytes to actual RistrettoPoint
-        // This requires proper Pedersen commitment structure
-        // Return type will be: Result<RistrettoPoint> once implemented
-        Err(anyhow!("to_point requires real Pedersen commitments - currently using hash-based structure"))
+    /// Decompress the stored commitment bytes into a RistrettoPoint
+    ///
+    /// # Post-Quantum Note
+    /// Pedersen commitments rely on the discrete log assumption (Ristretto/Curve25519).
+    /// For PQ migration, replace with STARK-based commitments via xfg-stark/Winterfell.
+    pub fn to_point(&self) -> Result<RistrettoPoint> {
+        let compressed = CompressedRistretto(self.commitment);
+        compressed.decompress()
+            .ok_or_else(|| anyhow!("Invalid commitment: cannot decompress to RistrettoPoint"))
     }
-    
-    /// Homomorphic addition: C1 + C2
-    /// 
-    /// TEMPORARY: Placeholder until proper Pedersen commitments implemented
-    /// Will implement real point addition once commitment structure is fixed
+
+    /// Homomorphic addition: C(a, r_a) + C(b, r_b) = C(a+b, r_a+r_b)
+    ///
+    /// Adds two Pedersen commitments using Ristretto point addition.
+    /// The resulting commitment hides the sum of the two amounts.
     pub fn add(&self, other: &AmountCommitment) -> Result<AmountCommitment> {
-        // TODO: Implement with real RistrettoPoint addition
-        // For now, return error indicating this requires real commitments
-        Err(anyhow!("Homomorphic operations require real Pedersen commitments"))
+        let point_a = self.to_point()?;
+        let point_b = other.to_point()?;
+        let sum_point = point_a + point_b;
+
+        // Blinding factors also add: r_sum = r_a + r_b
+        let r_a = Scalar::from_bytes_mod_order(self.blinding_factor_bytes()?);
+        let r_b = Scalar::from_bytes_mod_order(other.blinding_factor_bytes()?);
+        let r_sum = r_a + r_b;
+
+        Ok(AmountCommitment {
+            commitment: sum_point.compress().to_bytes(),
+            blinding_factor: r_sum.to_bytes().to_vec(),
+        })
     }
-    
-    /// Homomorphic subtraction: C1 - C2
-    /// 
-    /// TEMPORARY: Placeholder until proper Pedersen commitments implemented
+
+    /// Homomorphic subtraction: C(a, r_a) - C(b, r_b) = C(a-b, r_a-r_b)
+    ///
+    /// Subtracts two Pedersen commitments using Ristretto point subtraction.
     pub fn subtract(&self, other: &AmountCommitment) -> Result<AmountCommitment> {
-        // TODO: Implement with real RistrettoPoint subtraction
-        Err(anyhow!("Homomorphic operations require real Pedersen commitments"))
+        let point_a = self.to_point()?;
+        let point_b = other.to_point()?;
+        let diff_point = point_a - point_b;
+
+        let r_a = Scalar::from_bytes_mod_order(self.blinding_factor_bytes()?);
+        let r_b = Scalar::from_bytes_mod_order(other.blinding_factor_bytes()?);
+        let r_diff = r_a - r_b;
+
+        Ok(AmountCommitment {
+            commitment: diff_point.compress().to_bytes(),
+            blinding_factor: r_diff.to_bytes().to_vec(),
+        })
     }
     
     /// Create commitment hash for indexing/fingerprinting
@@ -171,7 +176,7 @@ impl AmountCommitment {
                 &PEDERSEN_GENS,
                 &mut transcript,
                 amount,
-                r,
+                &r,
                 bits,
             ).map_err(|e| anyhow!("range proof generation failed: {e:?}"))?;
 
@@ -189,9 +194,10 @@ impl AmountCommitment {
             .map_err(|e| anyhow!("invalid range proof bytes: {e:?}"))?;
         let mut transcript = Transcript::new(b"C0DL3-CT-RangeProof");
         let committed = CompressedRistretto(self.commitment);
-        proof.verify_single(&BP_GENS, &PEDERSEN_GENS, &mut transcript, &committed, bits)
-            .map(|_| true)
-            .map_err(|e| anyhow!("range proof verification failed: {e:?}"))
+        match proof.verify_single(&BP_GENS, &PEDERSEN_GENS, &mut transcript, &committed, bits) {
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
+        }
     }
 }
 
@@ -241,30 +247,28 @@ mod tests {
     }
     
     #[test]
-    fn test_homomorphic_addition_placeholder() {
-        // This test is skipped until real Pedersen commitments are implemented
-        // Once to_point() and add() work, this test should pass
+    fn test_homomorphic_addition() {
         let amount1 = 1000u64;
         let amount2 = 2000u64;
-        
+
         let c1 = AmountCommitment::new(amount1).unwrap();
         let c2 = AmountCommitment::new(amount2).unwrap();
-        
-        // Currently returns error - will pass once real commitments implemented
-        assert!(c1.add(&c2).is_err());
+        let c_sum = c1.add(&c2).unwrap();
+
+        // Verify the sum commitment: C_sum should equal commit(amount1+amount2, r1+r2)
+        assert!(c_sum.verify(amount1 + amount2).unwrap());
     }
-    
+
     #[test]
-    fn test_homomorphic_subtraction_placeholder() {
-        // This test is skipped until real Pedersen commitments are implemented
+    fn test_homomorphic_subtraction() {
         let amount1 = 5000u64;
         let amount2 = 2000u64;
-        
+
         let c1 = AmountCommitment::new(amount1).unwrap();
         let c2 = AmountCommitment::new(amount2).unwrap();
-        
-        // Currently returns error - will pass once real commitments implemented
-        assert!(c1.subtract(&c2).is_err());
+        let c_diff = c1.subtract(&c2).unwrap();
+
+        assert!(c_diff.verify(amount1 - amount2).unwrap());
     }
     
     #[test]
@@ -303,7 +307,7 @@ mod tests {
     #[test]
     fn test_range_proof_invalid_amount() {
         let amount = 500u64;
-        let bits = 10usize; // range up to 1024
+        let bits = 16usize; // range up to 65536 (Bulletproofs requires power-of-2 bit sizes)
         let commitment = AmountCommitment::new(amount).unwrap();
         // Prove for a different amount (wrong witness) should fail to verify with this commitment
         let other = AmountCommitment::new(amount + 1).unwrap();

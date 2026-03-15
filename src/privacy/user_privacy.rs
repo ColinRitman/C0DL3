@@ -13,6 +13,7 @@ use crate::privacy::{
     confidential_transactions::AmountCommitment,
     address_encryption::{AddressEncryption, EncryptedAddress},
     timing_privacy::{TimingPrivacy, EncryptedTimestamp},
+    stealth_address::{StealthOutput, StealthPaymentAddress, generate_stealth_output},
 };
 
 /// User-level privacy manager with elite cryptography standards
@@ -52,6 +53,11 @@ pub struct PrivateTransaction {
     pub range_proof_bytes: Vec<u8>,
     /// Range proof bit length
     pub range_proof_bits: usize,
+
+    /// Stealth address output for this payment (if recipient uses stealth addresses).
+    /// Contains the one-time address (state trie key) and ephemeral data for scanning.
+    /// None if recipient has not published a stealth payment address.
+    pub stealth_output: Option<StealthOutput>,
 }
 
 
@@ -95,8 +101,12 @@ impl UserPrivacyManager {
         })
     }
     
-    /// Create private transaction with user-level privacy (always enabled)
-    /// Privacy is always enabled at maximum level (100) - no check needed
+    /// Create private transaction with user-level privacy (always enabled).
+    ///
+    /// If `recipient_stealth_addr` is provided, a one-time stealth address is
+    /// generated for the recipient. The `one_time_address` field becomes the
+    /// account key in the state trie, breaking the link between this payment
+    /// and the recipient's public identity.
     pub fn create_private_transaction(
         &mut self,
         sender: &str,
@@ -104,27 +114,38 @@ impl UserPrivacyManager {
         amount: u64,
         timestamp: u64,
         sender_balance: u64,
+        recipient_stealth_addr: Option<&StealthPaymentAddress>,
     ) -> Result<PrivateTransaction> {
-        // Privacy is always enabled - no check needed
-        
+        // Generate stealth output if recipient has a stealth payment address
+        let stealth_output = recipient_stealth_addr
+            .map(generate_stealth_output)
+            .transpose()?;
+
+        // Use one-time stealth address as effective recipient for tx hash,
+        // so the hash doesn't encode the recipient's real identity
+        let effective_recipient = stealth_output
+            .as_ref()
+            .map(|o| hex::encode(o.one_time_address))
+            .unwrap_or_else(|| recipient.to_string());
+
         // Generate transaction hash (public for verification)
-        let tx_data = format!("{}:{}:{}:{}", sender, recipient, amount, timestamp);
+        let tx_data = format!("{}:{}:{}:{}", sender, effective_recipient, amount, timestamp);
         let tx_hash = Self::hash_data(&tx_data);
-        
-        // Encrypt addresses (protects user identity)
+
+        // Encrypt addresses (protects user identity in tx body)
         let encrypted_sender = self.address_encryption.encrypt_sender(sender)?;
-        let encrypted_recipient = self.address_encryption.encrypt_recipient(recipient)?;
-        
+        let encrypted_recipient = self.address_encryption.encrypt_recipient(&effective_recipient)?;
+
         // Generate amount commitment (hides transaction amount)
         let amount_commitment = AmountCommitment::new(amount)?;
-        
+
         // Encrypt timestamp (protects user timing)
         let encrypted_timestamp = self.timing_privacy.encrypt_timestamp(timestamp)?;
-        
+
         // Generate CT range proof (Bulletproofs) for amount in 64-bit range
         let bits = 64usize;
         let (range_proof_bytes, _cbytes) = amount_commitment.prove_range(amount, bits)?;
-        
+
         let transaction = PrivateTransaction {
             hash: tx_hash.clone(),
             encrypted_sender,
@@ -133,14 +154,15 @@ impl UserPrivacyManager {
             encrypted_timestamp,
             range_proof_bytes,
             range_proof_bits: bits,
+            stealth_output,
         };
-        
+
         // Store transaction
         {
             let mut transactions = self.private_transactions.lock().unwrap();
             transactions.insert(tx_hash, transaction.clone());
         }
-        
+
         Ok(transaction)
     }
     
@@ -261,22 +283,21 @@ mod tests {
     
     #[test]
     fn test_privacy_manager_creation() {
-        let manager = UserPrivacyManager::new().unwrap();
-        // Privacy manager should be created successfully
-        assert!(true);
+        let _manager = UserPrivacyManager::new().unwrap();
     }
-    
+
     #[test]
     fn test_private_transaction_creation() {
-        let manager = UserPrivacyManager::new().unwrap();
+        let mut manager = UserPrivacyManager::new().unwrap();
         let tx = manager.create_private_transaction(
-            "sender_address",
-            "recipient_address", 
+            "0xsender_address_000000",
+            "0xrecipient_address_0000",
             1000,
             1234567890,
             5000,
+            None,
         ).unwrap();
-        
+
         // Transaction should be created with all privacy features
         assert!(!tx.hash.is_empty());
         assert!(!tx.encrypted_sender.ciphertext.is_empty());
@@ -287,15 +308,16 @@ mod tests {
     
     #[test]
     fn test_transaction_verification() {
-        let manager = UserPrivacyManager::new().unwrap();
+        let mut manager = UserPrivacyManager::new().unwrap();
         let tx = manager.create_private_transaction(
-            "sender_address",
-            "recipient_address",
+            "0xsender_address_000000",
+            "0xrecipient_address_0000",
             1000,
             1234567890,
             5000,
+            None,
         ).unwrap();
-        
+
         let is_valid = manager.verify_private_transaction(&tx).unwrap();
         assert!(is_valid);
     }

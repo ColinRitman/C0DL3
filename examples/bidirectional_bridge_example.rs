@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::time::Duration;
 use tokio::time;
 
-use c0dl3_zksync::privacy::bidirectional_bridge::{
+use codl3_zksync::privacy::bidirectional_bridge::{
     BidirectionalBridgeManager, C0dl3Event, C0dl3EventType
 };
 
@@ -63,10 +63,7 @@ async fn main() -> Result<()> {
 
         match bridge_manager.get_sync_status() {
             Ok(status) => {
-                println!("🔄 Sync Status #{}:", i + 1);
-                println!("  Last C0DL3 block on Fuego: {}", status.last_c0dl3_block_on_fuego);
-                println!("  Last Fuego block on C0DL3: {}", status.last_fuego_block_on_c0dl3);
-                println!("  Sync lag: {} blocks", status.sync_lag_blocks);
+                println!("🔄 Sync Status #{}: {:?}", i + 1, status);
             }
             Err(e) => println!("❌ Failed to get sync status: {}", e),
         }

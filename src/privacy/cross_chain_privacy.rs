@@ -12,7 +12,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::privacy::{
     user_privacy::PrivateTransaction,
-    boojum_stark_proofs::BoojumStarkProofSystem,
 };
 
 /// Cross-chain privacy coordinator
@@ -646,72 +645,16 @@ mod tests {
     #[test]
     fn test_cross_chain_transaction_creation() {
         let coordinator = CrossChainPrivacyCoordinator::new();
-        
-        // Create mock private transaction
-        let mock_tx = PrivateTransaction {
-            hash: "test_tx_hash".to_string(),
-            validity_proof: crate::privacy::user_privacy::StarkProof {
-                proof_data: vec![1, 2, 3],
-                public_inputs: vec![4, 5, 6],
-                proof_type: "test".to_string(),
-                security_level: 128,
-            },
-            encrypted_sender: crate::privacy::address_encryption::EncryptedAddress {
-                ciphertext: vec![1, 2, 3],
-                nonce: [1; 12],
-                tag: [1; 16],
-                metadata: crate::privacy::address_encryption::AddressMetadata {
-                    address_type: "sender".to_string(),
-                    timestamp: 1234567890,
-                    version: 1,
-                },
-            },
-            encrypted_recipient: crate::privacy::address_encryption::EncryptedAddress {
-                ciphertext: vec![4, 5, 6],
-                nonce: [2; 12],
-                tag: [2; 16],
-                metadata: crate::privacy::address_encryption::AddressMetadata {
-                    address_type: "recipient".to_string(),
-                    timestamp: 1234567890,
-                    version: 1,
-                },
-            },
-            amount_commitment: crate::privacy::amount_commitments::AmountCommitment {
-                commitment: vec![7, 8, 9],
-                blinding_factor: vec![10, 11, 12],
-                metadata: crate::privacy::amount_commitments::CommitmentMetadata {
-                    max_amount: 1000000,
-                    timestamp: 1234567890,
-                    version: 1,
-                },
-            },
-            encrypted_timestamp: crate::privacy::timing_privacy::EncryptedTimestamp {
-                ciphertext: vec![13, 14, 15],
-                nonce: [3; 12],
-                tag: [3; 16],
-                metadata: crate::privacy::timing_privacy::TimestampMetadata {
-                    timestamp_type: "transaction".to_string(),
-                    encryption_timestamp: 1234567890,
-                    version: 1,
-                },
-            },
-            range_proof: crate::privacy::user_privacy::StarkProof {
-                proof_data: vec![16, 17, 18],
-                public_inputs: vec![19, 20, 21],
-                proof_type: "range".to_string(),
-                security_level: 128,
-            },
-            balance_proof: crate::privacy::user_privacy::StarkProof {
-                proof_data: vec![22, 23, 24],
-                public_inputs: vec![25, 26, 27],
-                proof_type: "balance".to_string(),
-                security_level: 128,
-            },
-        };
-        
+
+        // Build a real PrivateTransaction via the privacy manager
+        let mut pm = crate::privacy::user_privacy::UserPrivacyManager::new().unwrap();
+        let mock_tx = pm.create_private_transaction(
+            "0xsender_address_000000", "0xrecipient_address_0000", 1000, 1234567890, 5000, None,
+        ).unwrap();
+
         let result = coordinator.create_cross_chain_transaction(mock_tx, "ethereum", "0x1234567890123456789012345678901234567890");
         assert!(result.is_ok());
-        
+
         let proof = result.unwrap();
         assert_eq!(proof.destination_chain, "ethereum");
         assert_eq!(proof.metadata.privacy_level, 100);

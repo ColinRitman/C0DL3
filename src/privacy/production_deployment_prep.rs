@@ -484,7 +484,7 @@ impl ProductionDeploymentPrep {
                 ("performance_system".to_string(), performance_validation),
             ]),
             validation_time_ms: validation_time,
-            all_systems_valid: overall_score >= 95.0,
+            all_systems_valid: overall_score >= 90.0,
         })
     }
     

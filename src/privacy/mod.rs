@@ -4,12 +4,15 @@
 
 use serde::{Deserialize, Serialize};
 
-pub mod mining_privacy;
 pub mod user_privacy;
 pub mod amount_commitments;
 pub mod address_encryption;
 pub mod timing_privacy;
-pub mod confidential_transactions; // NEW: Bulletproofs CT implementation
+pub mod confidential_transactions; // Bulletproofs CT implementation
+pub mod block_commitment_proof;    // SHA-256 Merkle commitment tree proof
+pub mod stealth_address;           // Monero-style dual-key stealth addresses (Ristretto255)
+pub mod shielded_pool;             // ZK state: committed balances + nullifiers + conservation
+pub mod commitment_proof;          // Schnorr-style sigma protocol for Pedersen commitment knowledge
 
 // STARK modules - DEPRECATED (placeholders only, being replaced by Bulletproofs CT)
 #[cfg(feature = "deprecated-stark")]
@@ -20,36 +23,18 @@ pub mod production_stark_proofs;
 pub mod production_stark_core;
 #[cfg(feature = "deprecated-stark")]
 pub mod transaction_privacy_starks;
-#[cfg(feature = "deprecated-stark")]
-pub mod advanced_privacy_starks;
-pub mod advanced_privacy_features;
+
 pub mod performance_optimization;
 pub mod security_audit_prep;
-pub mod boojum_stark_proofs;
 pub mod cross_chain_privacy;
-pub mod privacy_monitoring;
-pub mod placeholder_tracking;
-pub mod production_boojum_integration;
-pub mod production_cross_chain_privacy;
-pub mod production_privacy_monitoring;
-pub mod production_performance_optimization;
-pub mod production_deployment_prep;
-pub mod phase4_performance_optimization;
-pub mod phase5_security_audit;
-pub mod phase6_production_deployment;
 pub mod xfg_winterfell_integration;
 pub mod bidirectional_bridge;
+pub mod production_deployment_prep;
 
 #[cfg(test)]
 mod tests;
 
-// Legacy mining privacy exports (existing functionality)
-pub use mining_privacy::{
-    MiningPrivacyEngine,
-    MiningPrivacyConfig,
-};
-
-// New user-level privacy exports
+// User-level privacy exports
 pub use user_privacy::{
     UserPrivacyManager,
     PrivateTransaction,
@@ -57,9 +42,49 @@ pub use user_privacy::{
     DecryptedTransaction,
 };
 
-// Confidential Transactions exports (NEW - primary privacy system)
+// Confidential Transactions exports (primary privacy system)
 pub use confidential_transactions::{
     AmountCommitment,
+};
+
+// Block commitment proof exports
+pub use block_commitment_proof::{
+    BlockCommitmentProof,
+    BlockProofPublicInputs,
+    generate_block_commitment_proof,
+    verify_block_commitment_proof,
+};
+
+// Shielded pool exports (ZK state layer)
+pub use shielded_pool::{
+    ShieldedPool,
+    ShieldedNote,
+    SpendProof,
+    compute_nullifier,
+    compute_balance_commitment,
+    verify_balance_conservation,
+    create_spend_proof,
+};
+
+// Stealth address exports
+pub use stealth_address::{
+    StealthKeypair,
+    StealthPaymentAddress,
+    StealthOutput,
+    generate_stealth_output,
+    scan_output,
+    derive_stealth_privkey,
+    one_time_address_to_hex,
+    encode_stealth_data,
+    decode_stealth_data,
+};
+
+// Commitment knowledge proof exports
+pub use commitment_proof::{
+    CommitmentKnowledgeProof,
+    prove_commitment_knowledge,
+    verify_commitment_knowledge,
+    prove_commitment_knowledge_with_commitment,
 };
 
 // STARK exports - DEPRECATED (feature-gated)
@@ -70,7 +95,7 @@ pub use stark_proofs::StarkProofSystem;
 
 // Legacy amount commitments (being replaced by confidential_transactions)
 pub use amount_commitments::{
-    AmountCommitment as LegacyAmountCommitment, // Old placeholder version
+    AmountCommitment as LegacyAmountCommitment,
     RangeProof as LegacyRangeProof,
     CommitmentBatch,
 };
@@ -88,29 +113,6 @@ pub use timing_privacy::{
     TimingPrivacyBatch,
 };
 
-// Production-grade privacy exports
-// pub use production_stark_proofs::{
-//     ProductionStarkProofSystem,
-//     ProductionStarkProof,
-//     ProofMetadata,
-// };
-
-
-pub use advanced_privacy_features::{
-    AdvancedPrivacyFeatures,
-    MixingPool,
-    AnonymityManager,
-    AnonymitySet,
-    PrivacyMetrics,
-    MixingProof,
-    ZeroKnowledgePrivacyProof,
-    PrivacyGuarantees,
-    PrivacyGovernance,
-    PrivacyPolicy,
-    ComplianceTracker,
-};
-
-// Performance exports (drop types already exported elsewhere)
 pub use performance_optimization::{
     OptimizedPrivacySystem,
     ProofCache,
@@ -144,16 +146,6 @@ pub use security_audit_prep::{
     SecurityMetrics,
 };
 
-// Boojum STARK proof exports
-pub use boojum_stark_proofs::{
-    BoojumStarkProofSystem,
-    BoojumStarkProof,
-    BoojumProofMetadata,
-    BoojumPerformanceMetrics,
-    BoojumSpecificMetrics,
-};
-
-// Cross-chain privacy exports
 pub use cross_chain_privacy::{
     CrossChainPrivacyCoordinator,
     BlockchainNetwork,
@@ -176,184 +168,7 @@ pub use cross_chain_privacy::{
     PrivacyTrend,
 };
 
-// Privacy monitoring exports
-pub use privacy_monitoring::{
-    PrivacyMonitoringSystem,
-    PrivacyMetricsCollector,
-    PrivacyRealTimeMetrics,
-    PrivacyHistoricalMetrics,
-    PrivacyViolationDetector,
-    ViolationPattern,
-    DetectionRule,
-    ViolationSeverity,
-    PrivacyViolation,
-    ViolationThresholds,
-    PrivacyAnalyticsEngine,
-    PrivacyAnalyticsData,
-    PrivacyTrend as MonitoringPrivacyTrend,
-    AnonymityTrend,
-    MixingTrend,
-    CrossChainTrend,
-    PerformanceTrend,
-    TrendDirection,
-    AnalyticsModel,
-    TrendAnalysis,
-    TrendAnalysisResult,
-    PrivacyAlertingSystem,
-    AlertRule,
-    PrivacyAlert,
-    AlertStatus,
-    AlertChannel,
-    PrivacyDashboardData,
-    DashboardMetrics,
-    DashboardChart,
-    ChartDataPoint,
-    DashboardStatus,
-    PrivacyReport,
-};
-
-// Placeholder tracking exports
-pub use placeholder_tracking::{
-    PlaceholderTrackingSystem,
-    PlaceholderEntry,
-    PlaceholderType,
-    SecurityImpact,
-    PriorityLevel,
-    PlaceholderStatus,
-    SimplifiedImplementation,
-    SimplifiedImplementationType,
-    SimplifiedImplementationStatus,
-    ProductionRequirement,
-    ProductionRequirementType,
-    ImplementationEffort,
-    ProductionRequirementStatus,
-    IntegrationStatus,
-    ComponentIntegrationStatus,
-    IntegrationTimeline,
-    PlaceholderReport,
-};
-
-/// Privacy feature flags
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrivacyFlags {
-    pub private_mining_rewards: bool,
-    pub anonymous_validators: bool,
-    pub encrypted_transactions: bool,
-    pub private_governance: bool,
-    pub cross_chain_privacy: bool,
-}
-
-impl Default for PrivacyFlags {
-    fn default() -> Self {
-        Self {
-            private_mining_rewards: true,
-            anonymous_validators: false,
-            encrypted_transactions: false,
-            private_governance: false,
-            cross_chain_privacy: false,
-        }
-    }
-}
-
-/// Privacy engine coordinator
-pub struct PrivacyEngine {
-    mining_privacy: MiningPrivacyEngine,
-    privacy_flags: PrivacyFlags,
-}
-
-impl PrivacyEngine {
-    pub fn new(privacy_flags: PrivacyFlags) -> Self {
-        let mining_config = MiningPrivacyConfig::default();
-        let mining_privacy = MiningPrivacyEngine::new(mining_config);
-        
-        Self {
-            mining_privacy,
-            privacy_flags,
-        }
-    }
-    
-    pub fn get_mining_privacy(&self) -> &MiningPrivacyEngine {
-        &self.mining_privacy
-    }
-    
-    pub fn get_privacy_flags(&self) -> &PrivacyFlags {
-        &self.privacy_flags
-    }
-}
-
-// Phase 4: Performance Optimization exports
-pub use phase4_performance_optimization::{
-    PerformanceOptimizationManager,
-    CachedProof,
-    ParallelProcessingPool,
-    OptimizationStrategy,
-    CacheConfiguration,
-    CacheStatistics,
-    MemoryOptimizationResult,
-};
-
-// Phase 5: Security Audit exports (avoid duplicates)
-pub use phase5_security_audit::{
-    SecurityAuditManager,
-    VulnerabilityReport,
-    SeverityLevel,
-    VulnerabilityStatus,
-    SecurityTestResult,
-    SecurityTestCategory,
-    TestResult,
-    ComplianceStatus,
-    ComplianceRequirement,
-    ComplianceStatusType,
-    ThreatIntelligence,
-    SecurityAdvisory,
-    AuditReport,
-};
-
-// Phase 6: Production Deployment exports (drop overlapping items)
-pub use phase6_production_deployment::{
-    ProductionDeploymentManager,
-    DeploymentConfig,
-    EnvironmentType,
-    NodeConfig,
-    NodeType,
-    ResourceAllocation,
-    ScalingConfig,
-    ScalingTrigger,
-    TriggerType,
-    ScalingAction,
-    NetworkConfig,
-    DatabaseConfig,
-    DatabaseType,
-    BackupConfig,
-    BackupFrequency,
-    MonitoringConfig,
-    LoggingConfig,
-    LogLevel,
-    LogFormat,
-    LogDestination,
-    AlertingConfig,
-    ChannelType,
-    InfrastructureStatus,
-    InfrastructureHealth,
-    ComponentStatus,
-    ComponentHealth,
-    MonitoringSystems,
-    SystemMetrics,
-    NetworkIo,
-    ApplicationMetrics,
-    NetworkMetrics,
-    DatabaseMetrics,
-    DeploymentMetrics,
-    DeploymentStatus,
-    ProductionReadinessChecklist,
-    ReadinessItem,
-    ReadinessStatus,
-    ReadinessCategory,
-    ReadinessPriority,
-    DeploymentResult,
-};
-
-// XFG Winterfell Integration exports (avoid duplicate ProofType)
+// XFG Winterfell Integration exports
 pub use xfg_winterfell_integration::{
     XfgWinterfellManager,
     VerifiedBurn,
@@ -387,3 +202,38 @@ pub use bidirectional_bridge::{
     EventBatchConfig,
     BidirectionalMetrics,
 };
+
+/// Privacy feature flags
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivacyFlags {
+    pub anonymous_validators: bool,
+    pub encrypted_transactions: bool,
+    pub private_governance: bool,
+    pub cross_chain_privacy: bool,
+}
+
+impl Default for PrivacyFlags {
+    fn default() -> Self {
+        Self {
+            anonymous_validators: false,
+            encrypted_transactions: false,
+            private_governance: false,
+            cross_chain_privacy: false,
+        }
+    }
+}
+
+/// Privacy engine coordinator
+pub struct PrivacyEngine {
+    privacy_flags: PrivacyFlags,
+}
+
+impl PrivacyEngine {
+    pub fn new(privacy_flags: PrivacyFlags) -> Self {
+        Self { privacy_flags }
+    }
+
+    pub fn get_privacy_flags(&self) -> &PrivacyFlags {
+        &self.privacy_flags
+    }
+}

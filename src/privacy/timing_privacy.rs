@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
 use rand::RngCore;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Nonce as ChaChaNonce, Key as ChaChaKey,
+};
 
 /// Encrypted timestamp structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,93 +213,56 @@ impl TimingPrivacy {
         Ok(nonce)
     }
     
-    /// Encrypt data using ChaCha20Poly1305 (simplified implementation)
-    /// In production, this would use actual ChaCha20Poly1305 encryption
+    /// Encrypt data using real ChaCha20Poly1305 AEAD
+    ///
+    /// # Post-Quantum Note
+    /// ChaCha20Poly1305 is a symmetric AEAD cipher with 256-bit key.
+    /// Post-quantum safe (Grover's halves to 128-bit — still secure).
     fn encrypt_data(&self, data: &[u8], nonce: &[u8; 12]) -> Result<(Vec<u8>, [u8; 16])> {
-        // Simplified encryption: XOR with key-derived stream
-        let key_stream = self.generate_key_stream(nonce, data.len())?;
-        let mut ciphertext = Vec::new();
-        
-        for (i, &byte) in data.iter().enumerate() {
-            ciphertext.push(byte ^ key_stream[i]);
-        }
-        
-        // Generate authentication tag (simplified)
-        let tag = self.generate_tag(&ciphertext, nonce)?;
-        
+        let key = ChaChaKey::from_slice(&self.encryption_key);
+        let cipher = ChaCha20Poly1305::new(key);
+        let chacha_nonce = ChaChaNonce::from_slice(nonce);
+
+        let ciphertext_with_tag = cipher.encrypt(chacha_nonce, data)
+            .map_err(|e| anyhow!("ChaCha20Poly1305 encryption failed: {}", e))?;
+
+        // ChaCha20Poly1305 appends 16-byte Poly1305 tag to ciphertext
+        let tag_start = ciphertext_with_tag.len() - 16;
+        let ciphertext = ciphertext_with_tag[..tag_start].to_vec();
+        let mut tag = [0u8; 16];
+        tag.copy_from_slice(&ciphertext_with_tag[tag_start..]);
+
         Ok((ciphertext, tag))
     }
-    
-    /// Decrypt data using ChaCha20Poly1305 (simplified implementation)
+
+    /// Decrypt data using real ChaCha20Poly1305 AEAD
     fn decrypt_data(&self, ciphertext: &[u8], nonce: &[u8; 12], tag: &[u8; 16]) -> Result<Vec<u8>> {
-        // Verify tag (simplified)
-        let expected_tag = self.generate_tag(ciphertext, nonce)?;
-        if expected_tag != *tag {
-            return Err(anyhow!("Authentication tag mismatch"));
-        }
-        
-        // Decrypt using XOR (simplified)
-        let key_stream = self.generate_key_stream(nonce, ciphertext.len())?;
-        let mut plaintext = Vec::new();
-        
-        for (i, &byte) in ciphertext.iter().enumerate() {
-            plaintext.push(byte ^ key_stream[i]);
-        }
-        
+        let key = ChaChaKey::from_slice(&self.encryption_key);
+        let cipher = ChaCha20Poly1305::new(key);
+        let chacha_nonce = ChaChaNonce::from_slice(nonce);
+
+        // Reconstruct ciphertext||tag for ChaCha20Poly1305 decrypt
+        let mut ciphertext_with_tag = ciphertext.to_vec();
+        ciphertext_with_tag.extend_from_slice(tag);
+
+        let plaintext = cipher.decrypt(chacha_nonce, ciphertext_with_tag.as_ref())
+            .map_err(|_| anyhow!("Authentication tag mismatch"))?;
+
         Ok(plaintext)
     }
-    
-    /// Generate key stream for encryption/decryption
-    fn generate_key_stream(&self, nonce: &[u8; 12], length: usize) -> Result<Vec<u8>> {
-        // Simplified key stream generation
-        // In production, this would use actual ChaCha20 stream cipher
-        let mut hasher = Sha256::new();
-        hasher.update(&self.encryption_key);
-        hasher.update(nonce);
-        hasher.update(&self.key_context.as_bytes());
-        
-        let mut key_stream = Vec::new();
-        let mut counter = 0u64;
-        
-        while key_stream.len() < length {
-            let mut round_hasher = Sha256::new();
-            round_hasher.update(hasher.clone().finalize());
-            round_hasher.update(counter.to_le_bytes());
-            
-            key_stream.extend_from_slice(&round_hasher.finalize());
-            counter += 1;
-        }
-        
-        key_stream.truncate(length);
-        Ok(key_stream)
-    }
-    
-    /// Generate authentication tag
-    fn generate_tag(&self, ciphertext: &[u8], nonce: &[u8; 12]) -> Result<[u8; 16]> {
-        // Simplified tag generation
-        // In production, this would use actual Poly1305 authentication
-        let mut hasher = Sha256::new();
-        hasher.update(&self.encryption_key);
-        hasher.update(nonce);
-        hasher.update(ciphertext);
-        
-        let hash = hasher.finalize();
-        let mut tag = [0u8; 16];
-        tag.copy_from_slice(&hash[..16]);
-        Ok(tag)
-    }
-    
-    /// Generate range proof data (simplified implementation)
+
+    // TESTNET PLACEHOLDER: Timestamp range proofs are structural placeholders.
+    // For mainnet, replace with Bulletproofs range proofs on committed timestamps,
+    // or STARK-based range proofs (post-quantum) via xfg-stark/Winterfell.
+
+    /// Generate range proof data (testnet placeholder)
     fn generate_range_proof_data(&self, timestamp: u64, min_timestamp: u64, max_timestamp: u64) -> Result<Vec<u8>> {
-        // Simplified range proof generation
-        // In production, this would use actual range proof techniques
         let proof_data = format!("timestamp_range_proof:{}:{}:{}", timestamp, min_timestamp, max_timestamp);
         Ok(proof_data.as_bytes().to_vec())
     }
-    
-    /// Create public inputs for range proof (only range bounds revealed)
+
+    /// Create public inputs for range proof (testnet placeholder)
     fn create_range_public_inputs(&self, min_timestamp: u64, max_timestamp: u64) -> Result<Vec<u8>> {
-        // Only reveal range bounds, not the actual timestamp
         let inputs = format!("timestamp_range_inputs:{}:{}", min_timestamp, max_timestamp);
         Ok(inputs.as_bytes().to_vec())
     }
