@@ -8,6 +8,8 @@
 //   0x0100: Ristretto255 point operations
 //   0x0101: Pedersen commitment
 //   0x0102: Bulletproofs range proof verification
+//   0x0106: Schnorr signature verification
+//   0x0107: Conservation check (Pedersen commitment balance)
 //   0x0110: Shield (EVM → shielded pool deposit)
 //   0x0111: Unshield (shielded pool → EVM withdrawal)
 //
@@ -46,6 +48,7 @@ pub const RISTRETTO255_ADDR: u64 = 0x0100;
 pub const PEDERSEN_COMMIT_ADDR: u64 = 0x0101;
 pub const BULLETPROOFS_VERIFY_ADDR: u64 = 0x0102;
 pub const SCHNORR_VERIFY_ADDR: u64 = 0x0106;
+pub const CONSERVATION_CHECK_ADDR: u64 = 0x0107;
 pub const SHIELD_ADDR: u64 = 0x0110;
 pub const UNSHIELD_ADDR: u64 = 0x0111;
 
@@ -58,6 +61,7 @@ const GAS_RISTRETTO_SCALAR_MUL: u64 = 2_000;
 const GAS_PEDERSEN_COMMIT: u64 = 3_000;
 const GAS_BULLETPROOFS_VERIFY: u64 = 50_000;
 const GAS_SCHNORR_VERIFY: u64 = 3_000;
+const GAS_CONSERVATION_CHECK: u64 = 4_000;
 const GAS_SHIELD: u64 = 10_000;
 const GAS_UNSHIELD: u64 = 10_000;
 
@@ -85,6 +89,10 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
             (
                 precompile_address(SCHNORR_VERIFY_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_schnorr_verify)),
+            ),
+            (
+                precompile_address(CONSERVATION_CHECK_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_conservation_check)),
             ),
             (
                 precompile_address(SHIELD_ADDR),
@@ -521,4 +529,164 @@ fn scalar_from_bytes(bytes: &[u8]) -> Scalar {
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&bytes[..32]);
     Scalar::from_bytes_mod_order(arr)
+}
+
+// ── 0x0107: Conservation Check ───────────────────────────────────────────────
+//
+// Input: old_sender_commit(32) || new_sender_commit(32) ||
+//        old_recipient_commit(32) || new_recipient_commit(32)  — 128 bytes total
+//
+// Checks Pedersen commitment balance conservation:
+//   old_sender - new_sender == new_recipient - old_recipient
+//   i.e. what the sender lost equals what the recipient gained.
+//
+// Output: 1 byte (0x01 = balanced, 0x00 = not balanced or invalid input)
+//
+// Returns Err if input is not exactly 128 bytes.
+//
+// Gas: 4,000
+
+fn precompile_conservation_check(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_CONSERVATION_CHECK {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 128 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "conservation_check: need exactly 128 bytes \
+                 (old_sender(32) + new_sender(32) + old_recipient(32) + new_recipient(32))",
+            ),
+        ));
+    }
+
+    // Decompress all four points; return 0x00 on any invalid point.
+    let old_sender = match CompressedRistretto(input[0..32].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => {
+            return Ok(PrecompileOutput::new(
+                GAS_CONSERVATION_CHECK,
+                vec![0x00].into(),
+            ))
+        }
+    };
+    let new_sender = match CompressedRistretto(input[32..64].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => {
+            return Ok(PrecompileOutput::new(
+                GAS_CONSERVATION_CHECK,
+                vec![0x00].into(),
+            ))
+        }
+    };
+    let old_recipient = match CompressedRistretto(input[64..96].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => {
+            return Ok(PrecompileOutput::new(
+                GAS_CONSERVATION_CHECK,
+                vec![0x00].into(),
+            ))
+        }
+    };
+    let new_recipient = match CompressedRistretto(input[96..128].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => {
+            return Ok(PrecompileOutput::new(
+                GAS_CONSERVATION_CHECK,
+                vec![0x00].into(),
+            ))
+        }
+    };
+
+    // Conservation: (old_sender - new_sender) == (new_recipient - old_recipient)
+    // Rearranged: (old_sender - new_sender) - (new_recipient - old_recipient) == identity
+    let sender_delta = old_sender - new_sender;
+    let recipient_delta = new_recipient - old_recipient;
+    let balanced = (sender_delta - recipient_delta) == RistrettoPoint::identity();
+
+    Ok(PrecompileOutput::new(
+        GAS_CONSERVATION_CHECK,
+        vec![if balanced { 0x01 } else { 0x00 }].into(),
+    ))
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_conservation_precompile() {
+        let gens = PedersenGens::default();
+
+        // Choose blindings such that r1 - r2 == r4 - r3, i.e. r4 = r3 + (r1 - r2).
+        // Use deterministic byte arrays for reproducibility.
+        let r1 = Scalar::from_bytes_mod_order([0x11u8; 32]);
+        let r2 = Scalar::from_bytes_mod_order([0x22u8; 32]);
+        let r3 = Scalar::from_bytes_mod_order([0x33u8; 32]);
+        // r4 = r3 + (r1 - r2)
+        let r4 = r3 + (r1 - r2);
+
+        let old_sender = gens
+            .commit(Scalar::from(100u64), r1)
+            .compress()
+            .to_bytes();
+        let new_sender = gens
+            .commit(Scalar::from(70u64), r2)
+            .compress()
+            .to_bytes();
+        let old_recipient = gens
+            .commit(Scalar::from(0u64), r3)
+            .compress()
+            .to_bytes();
+        let new_recipient = gens
+            .commit(Scalar::from(30u64), r4)
+            .compress()
+            .to_bytes();
+
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&old_sender);
+        input.extend_from_slice(&new_sender);
+        input.extend_from_slice(&old_recipient);
+        input.extend_from_slice(&new_recipient);
+
+        let result =
+            precompile_conservation_check(&Bytes::from(input), GAS_CONSERVATION_CHECK).unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x01], "conservation should hold");
+
+        // Unbalanced: use independent blindings for all four commitments.
+        let rb1 = Scalar::from_bytes_mod_order([0xAAu8; 32]);
+        let rb2 = Scalar::from_bytes_mod_order([0xBBu8; 32]);
+        let rb3 = Scalar::from_bytes_mod_order([0xCCu8; 32]);
+        let rb4 = Scalar::from_bytes_mod_order([0xDDu8; 32]);
+
+        let os2 = gens.commit(Scalar::from(100u64), rb1).compress().to_bytes();
+        let ns2 = gens.commit(Scalar::from(70u64), rb2).compress().to_bytes();
+        let or2 = gens.commit(Scalar::from(0u64), rb3).compress().to_bytes();
+        let nr2 = gens.commit(Scalar::from(30u64), rb4).compress().to_bytes();
+
+        let mut input2 = Vec::with_capacity(128);
+        input2.extend_from_slice(&os2);
+        input2.extend_from_slice(&ns2);
+        input2.extend_from_slice(&or2);
+        input2.extend_from_slice(&nr2);
+
+        let result2 =
+            precompile_conservation_check(&Bytes::from(input2), GAS_CONSERVATION_CHECK).unwrap();
+        assert_eq!(
+            result2.bytes.as_ref(),
+            &[0x00],
+            "unbalanced blindings should fail conservation"
+        );
+    }
+
+    #[test]
+    fn test_conservation_precompile_wrong_length() {
+        // Wrong length should return Err, not Ok(0x00).
+        let input = Bytes::from(vec![0u8; 64]);
+        let result = precompile_conservation_check(&input, GAS_CONSERVATION_CHECK);
+        assert!(result.is_err(), "wrong-length input should error");
+    }
 }
