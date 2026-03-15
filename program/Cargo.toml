@@ -28,6 +28,7 @@ sha2 = "0.10"          # SHA-256 — patched via sp1-patches for SP1 SHA-256 pre
 sha3 = "0.10"          # Keccak256 — for ecRecover address derivation (0x0001)
 k256 = { version = "0.13", features = ["ecdsa"] }    # secp256k1 ECDSA — ecRecover (0x0001)
 ed25519-consensus = "2.1"                             # Ed25519 verify — 0x0140 (HEAT/COLD + bridge)
+p256 = { version = "0.13", features = ["ecdsa"] }    # P-256/secp256r1 ECDSA — WebAuthn/Passkeys (0x0201)
 num-bigint = "0.4"     # arbitrary-precision integers — ModExp (0x0005)
 substrate-bn = "0.6"   # BN254 elliptic curve — ecAdd/ecMul/ecPairing (0x0006/0x0007/0x0008)
 serde = { version = "1.0", features = ["derive"] }
@@ -45,3 +46,5 @@ curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-n
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.0.0" }
 # BLS12-381 — patch registered, no precompile yet (reserved 0x0160-0x0163)
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.0.0" }
+# P-256 / secp256r1 — for WebAuthn/Passkeys precompile 0x0201
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.0.0" }

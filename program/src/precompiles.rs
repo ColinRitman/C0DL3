@@ -12,6 +12,7 @@
 //   0x0107: Conservation check (Pedersen commitment balance)
 //   0x0110: Shield (EVM → shielded pool deposit)
 //   0x0111: Unshield (shielded pool → EVM withdrawal)
+//   0x0201: P-256 (secp256r1) signature verify — WebAuthn/Passkeys
 //
 // All precompiles follow the standard revm convention:
 //   fn(&Bytes, gas_limit: u64) -> PrecompileResult
@@ -64,6 +65,8 @@ pub const SHIELD_ADDR: u64 = 0x0110;
 pub const UNSHIELD_ADDR: u64 = 0x0111;
 // Ed25519 — HEAT/COLD verifier contracts + Cosmos/Solana bridge sigs
 pub const ED25519_VERIFY_ADDR: u64 = 0x0140;
+// P-256 / secp256r1 — WebAuthn/Passkeys (Face ID, Touch ID, YubiKey)
+pub const P256_VERIFY_ADDR: u64 = 0x0201;
 
 // ── Gas Costs ───────────────────────────────────────────────────────────────
 // Conservative estimates. SP1 accelerates curve25519 ops via precompile syscalls,
@@ -79,6 +82,7 @@ const GAS_BN254_MUL: u64 = 6_000;
 const GAS_BN254_PAIRING_BASE: u64 = 45_000;
 const GAS_BN254_PAIRING_PER_PAIR: u64 = 34_000;
 const GAS_ED25519_VERIFY: u64 = 3_000;
+const GAS_P256_VERIFY: u64 = 3_000;
 
 const GAS_RISTRETTO_ADD: u64 = 500;
 const GAS_RISTRETTO_SCALAR_MUL: u64 = 2_000;
@@ -165,6 +169,10 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
             (
                 precompile_address(ED25519_VERIFY_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_ed25519_verify)),
+            ),
+            (
+                precompile_address(P256_VERIFY_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_p256_verify)),
             ),
         ]);
         precompiles
@@ -656,6 +664,71 @@ fn precompile_ed25519_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult 
 
     Ok(PrecompileOutput::new(
         GAS_ED25519_VERIFY,
+        vec![if valid { 0x01 } else { 0x00 }].into(),
+    ))
+}
+
+// ── 0x0201: P-256 (secp256r1) Signature Verify ──────────────────────────────
+//
+// Enables WebAuthn / Passkeys authentication: Face ID, Touch ID, YubiKey, etc.
+// ERC-7562 / RIP-7212 compatible interface.
+//
+// Input:  msg_hash(32) || r(32) || s(32) || x(32) || y(32) = 160 bytes
+//   msg_hash — the 32-byte pre-hashed message (e.g. SHA-256 of the challenge)
+//   r, s     — ECDSA signature scalars (big-endian)
+//   x, y     — uncompressed P-256 public key coordinates (big-endian)
+// Output: 0x01 if valid, 0x00 if invalid or input malformed
+// Gas:    3,000
+
+fn precompile_p256_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use p256::{
+        ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
+        EncodedPoint,
+    };
+
+    if gas_limit < GAS_P256_VERIFY {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    // Require exactly 160 bytes: msg_hash(32) + r(32) + s(32) + x(32) + y(32)
+    if input.len() != 160 {
+        return Ok(PrecompileOutput::new(GAS_P256_VERIFY, vec![0x00].into()));
+    }
+
+    let msg_hash = &input[0..32];
+    let r = &input[32..64];
+    let s = &input[64..96];
+    let x = &input[96..128];
+    let y = &input[128..160];
+
+    // Build the uncompressed public key from (x, y) coordinates.
+    // Construct a 65-byte uncompressed point: 0x04 || x || y
+    let mut uncompressed = [0u8; 65];
+    uncompressed[0] = 0x04;
+    uncompressed[1..33].copy_from_slice(x);
+    uncompressed[33..65].copy_from_slice(y);
+    let encoded_point = EncodedPoint::from_bytes(&uncompressed)
+        .unwrap_or_else(|_| EncodedPoint::identity());
+    let vk = match VerifyingKey::from_encoded_point(&encoded_point) {
+        Ok(k) => k,
+        Err(_) => return Ok(PrecompileOutput::new(GAS_P256_VERIFY, vec![0x00].into())),
+    };
+
+    // Build signature from concatenated r || s (64 bytes total)
+    let mut rs_bytes = [0u8; 64];
+    rs_bytes[..32].copy_from_slice(r);
+    rs_bytes[32..].copy_from_slice(s);
+    let sig = match Signature::try_from(rs_bytes.as_ref()) {
+        Ok(s) => s,
+        Err(_) => return Ok(PrecompileOutput::new(GAS_P256_VERIFY, vec![0x00].into())),
+    };
+
+    // Verify — msg_hash is already the final hash (prehash interface)
+    let valid = vk.verify_prehash(msg_hash, &sig).is_ok();
+    Ok(PrecompileOutput::new(
+        GAS_P256_VERIFY,
         vec![if valid { 0x01 } else { 0x00 }].into(),
     ))
 }
