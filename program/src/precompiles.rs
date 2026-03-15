@@ -32,6 +32,7 @@ use revm::{
     ContextPrecompile, Database,
 };
 use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 use std::sync::Arc;
 
 // ── Precompile Addresses ────────────────────────────────────────────────────
@@ -44,6 +45,14 @@ fn precompile_address(id: u64) -> Address {
     Address::from(bytes)
 }
 
+// Ethereum-compatible precompiles (matching standard EVM addresses)
+pub const EC_RECOVER_ADDR: u64 = 0x0001;
+pub const SHA256_ADDR: u64 = 0x0002;
+pub const MOD_EXP_ADDR: u64 = 0x0005;
+pub const BN254_ADD_ADDR: u64 = 0x0006;
+pub const BN254_MUL_ADDR: u64 = 0x0007;
+pub const BN254_PAIRING_ADDR: u64 = 0x0008;
+// C0DL3 privacy precompiles
 pub const RISTRETTO255_ADDR: u64 = 0x0100;
 pub const PEDERSEN_COMMIT_ADDR: u64 = 0x0101;
 pub const BULLETPROOFS_VERIFY_ADDR: u64 = 0x0102;
@@ -53,10 +62,23 @@ pub const CONSERVATION_CHECK_ADDR: u64 = 0x0107;
 pub const MEMO_DECRYPT_VERIFY_ADDR: u64 = 0x010A;
 pub const SHIELD_ADDR: u64 = 0x0110;
 pub const UNSHIELD_ADDR: u64 = 0x0111;
+// Ed25519 — HEAT/COLD verifier contracts + Cosmos/Solana bridge sigs
+pub const ED25519_VERIFY_ADDR: u64 = 0x0140;
 
 // ── Gas Costs ───────────────────────────────────────────────────────────────
 // Conservative estimates. SP1 accelerates curve25519 ops via precompile syscalls,
 // so actual RISC-V cycle cost is much lower than software-only execution.
+
+// Ethereum-compat gas constants (EIP-defined values)
+const GAS_EC_RECOVER: u64 = 3_000;
+const GAS_SHA256_BASE: u64 = 60;
+const GAS_SHA256_WORD: u64 = 12;
+const GAS_MOD_EXP_MIN: u64 = 200;
+const GAS_BN254_ADD: u64 = 150;
+const GAS_BN254_MUL: u64 = 6_000;
+const GAS_BN254_PAIRING_BASE: u64 = 45_000;
+const GAS_BN254_PAIRING_PER_PAIR: u64 = 34_000;
+const GAS_ED25519_VERIFY: u64 = 3_000;
 
 const GAS_RISTRETTO_ADD: u64 = 500;
 const GAS_RISTRETTO_SCALAR_MUL: u64 = 2_000;
@@ -78,6 +100,32 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
     handler.pre_execution.load_precompiles = Arc::new(move || {
         let mut precompiles = prev();
         precompiles.extend([
+            // Ethereum-compatible precompiles
+            (
+                precompile_address(EC_RECOVER_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_ec_recover)),
+            ),
+            (
+                precompile_address(SHA256_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_sha256)),
+            ),
+            (
+                precompile_address(MOD_EXP_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_mod_exp)),
+            ),
+            (
+                precompile_address(BN254_ADD_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_bn254_add)),
+            ),
+            (
+                precompile_address(BN254_MUL_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_bn254_mul)),
+            ),
+            (
+                precompile_address(BN254_PAIRING_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_bn254_pairing)),
+            ),
+            // C0DL3 privacy precompiles
             (
                 precompile_address(RISTRETTO255_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_ristretto255)),
@@ -114,9 +162,502 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
                 precompile_address(UNSHIELD_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_unshield)),
             ),
+            (
+                precompile_address(ED25519_VERIFY_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_ed25519_verify)),
+            ),
         ]);
         precompiles
     });
+}
+
+// ── 0x0001: ecRecover (secp256k1) ───────────────────────────────────────────
+//
+// Input: msg_hash(32) || v(32) || r(32) || s(32) = 128 bytes (Ethereum format)
+//   v is 32 bytes; recovery id is encoded in the last byte: 0x1B (27) → 0, 0x1C (28) → 1
+//
+// Output: 32-byte zero-padded Ethereum address, or all-zeros on failure
+
+fn precompile_ec_recover(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_EC_RECOVER {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    // Pad input to 128 bytes if shorter (Ethereum spec)
+    let mut padded = [0u8; 128];
+    let copy_len = input.len().min(128);
+    padded[..copy_len].copy_from_slice(&input[..copy_len]);
+
+    let msg_hash = &padded[0..32];
+    // v is in byte 63 (last byte of the 32-byte v field)
+    let v_byte = padded[63];
+    let r_s = &padded[64..128];
+
+    // Parse recovery id: 27 → 0, 28 → 1; anything else fails gracefully
+    let recovery_id_byte = match v_byte {
+        27 => 0u8,
+        28 => 1u8,
+        _ => {
+            return Ok(PrecompileOutput::new(GAS_EC_RECOVER, vec![0u8; 32].into()));
+        }
+    };
+
+    let recid = match k256::ecdsa::RecoveryId::try_from(recovery_id_byte) {
+        Ok(r) => r,
+        Err(_) => {
+            return Ok(PrecompileOutput::new(GAS_EC_RECOVER, vec![0u8; 32].into()));
+        }
+    };
+
+    let sig = match k256::ecdsa::Signature::try_from(r_s) {
+        Ok(s) => s,
+        Err(_) => {
+            return Ok(PrecompileOutput::new(GAS_EC_RECOVER, vec![0u8; 32].into()));
+        }
+    };
+
+    let vk = match k256::ecdsa::VerifyingKey::recover_from_prehash(msg_hash, &sig, recid) {
+        Ok(k) => k,
+        Err(_) => {
+            return Ok(PrecompileOutput::new(GAS_EC_RECOVER, vec![0u8; 32].into()));
+        }
+    };
+
+    // Ethereum address = keccak256(uncompressed_pubkey[1..])[12..]
+    let uncompressed = vk.to_encoded_point(false);
+    let pubkey_bytes = uncompressed.as_bytes(); // 65 bytes: 0x04 || x(32) || y(32)
+    let hash = Keccak256::digest(&pubkey_bytes[1..]); // keccak256 of x || y
+
+    // Left-pad address to 32 bytes
+    let mut output = vec![0u8; 32];
+    output[12..32].copy_from_slice(&hash[12..32]);
+
+    Ok(PrecompileOutput::new(GAS_EC_RECOVER, output.into()))
+}
+
+// ── 0x0002: SHA-256 ─────────────────────────────────────────────────────────
+//
+// Input: arbitrary bytes
+// Output: 32-byte SHA-256 hash
+// Gas: 60 + 12 * ceil(input_len / 32)
+
+fn precompile_sha256(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    let gas = GAS_SHA256_BASE + GAS_SHA256_WORD * ((input.len() as u64 + 31) / 32);
+    if gas_limit < gas {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    let hash: [u8; 32] = Sha256::digest(input.as_ref()).into();
+    Ok(PrecompileOutput::new(gas, hash.to_vec().into()))
+}
+
+// ── 0x0005: ModExp (bigint modular exponentiation) ──────────────────────────
+//
+// Input: base_len(32 BE) || exp_len(32 BE) || mod_len(32 BE) || base || exp || mod
+// Output: result padded to mod_len bytes (big-endian)
+// Gas: EIP-2565 simplified formula
+
+fn precompile_mod_exp(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use num_bigint::BigUint;
+
+    // Parse length fields (we only need the last 4 bytes of each 32-byte field to cover
+    // any reasonable length; anything with higher bytes set would be astronomically large)
+    let read_len = |slice: &[u8]| -> usize {
+        let mut arr = [0u8; 4];
+        arr.copy_from_slice(&slice[28..32]);
+        u32::from_be_bytes(arr) as usize
+    };
+
+    let mut padded = [0u8; 96];
+    let copy = input.len().min(96);
+    padded[..copy].copy_from_slice(&input[..copy]);
+
+    let base_len = read_len(&padded[0..32]);
+    let exp_len = read_len(&padded[32..64]);
+    let mod_len = read_len(&padded[64..96]);
+
+    // Gas computation (EIP-2565 simplified)
+    let max_len = base_len.max(mod_len) as u64;
+    let mult_complexity = if max_len <= 64 {
+        max_len * max_len
+    } else if max_len <= 1024 {
+        max_len * max_len / 4 + 96 * max_len - 3072
+    } else {
+        max_len * max_len / 16 + 480 * max_len - 199680
+    };
+    let adjusted_exp_len = {
+        if exp_len == 0 {
+            0u64
+        } else {
+            let exp_start = 96 + base_len;
+            let exp_bytes = if input.len() > exp_start {
+                &input[exp_start..input.len().min(exp_start + exp_len)]
+            } else {
+                &[]
+            };
+            // highest bit of exp
+            let mut bit_len = 0u64;
+            for &b in exp_bytes {
+                if b != 0 {
+                    bit_len = 8 * exp_bytes.len() as u64 - b.leading_zeros() as u64;
+                    break;
+                }
+            }
+            if bit_len > 1 { bit_len - 1 } else { 0 }
+        }
+    };
+    let gas = GAS_MOD_EXP_MIN.max(mult_complexity * adjusted_exp_len.max(1) / 3);
+
+    if gas_limit < gas {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    // If mod_len == 0, output is empty
+    if mod_len == 0 {
+        return Ok(PrecompileOutput::new(gas, vec![].into()));
+    }
+
+    // Extract base, exp, mod byte arrays from input
+    let data = input.as_ref();
+    let base_start = 96;
+    let exp_start = base_start + base_len;
+    let mod_start = exp_start + exp_len;
+
+    let get_bytes = |start: usize, len: usize| -> Vec<u8> {
+        let end = (start + len).min(data.len());
+        let available = if start < data.len() { &data[start..end] } else { &[] };
+        let mut v = vec![0u8; len];
+        let offset = len - available.len();
+        v[offset..].copy_from_slice(available);
+        v
+    };
+
+    let base_bytes = get_bytes(base_start, base_len);
+    let exp_bytes = get_bytes(exp_start, exp_len);
+    let mod_bytes = get_bytes(mod_start, mod_len);
+
+    let base = BigUint::from_bytes_be(&base_bytes);
+    let exp = BigUint::from_bytes_be(&exp_bytes);
+    let modulus = BigUint::from_bytes_be(&mod_bytes);
+
+    let result = if modulus == BigUint::from(0u32) {
+        BigUint::from(0u32)
+    } else {
+        base.modpow(&exp, &modulus)
+    };
+
+    // Left-pad result to mod_len bytes
+    let result_bytes = result.to_bytes_be();
+    let mut output = vec![0u8; mod_len];
+    if result_bytes.len() <= mod_len {
+        let offset = mod_len - result_bytes.len();
+        output[offset..].copy_from_slice(&result_bytes);
+    } else {
+        output.copy_from_slice(&result_bytes[result_bytes.len() - mod_len..]);
+    }
+
+    Ok(PrecompileOutput::new(gas, output.into()))
+}
+
+// ── 0x0006: BN254 ecAdd ─────────────────────────────────────────────────────
+//
+// Input: ax(32) || ay(32) || bx(32) || by(32) = 128 bytes (two G1 points, big-endian)
+// Output: x(32) || y(32) result point
+// Gas: 150
+
+fn precompile_bn254_add(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use substrate_bn::{AffineG1, Fq, G1, Group};
+
+    if gas_limit < GAS_BN254_ADD {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    let mut padded = [0u8; 128];
+    let copy = input.len().min(128);
+    padded[..copy].copy_from_slice(&input[..copy]);
+
+    let parse_g1 = |buf: &[u8; 64]| -> Result<G1, revm::precompile::PrecompileErrors> {
+        let x = Fq::from_slice(&buf[0..32]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_add: invalid Fq x"),
+            )
+        })?;
+        let y = Fq::from_slice(&buf[32..64]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_add: invalid Fq y"),
+            )
+        })?;
+        if x.is_zero() && y.is_zero() {
+            Ok(G1::zero())
+        } else {
+            AffineG1::new(x, y)
+                .map(Into::into)
+                .map_err(|_| revm::precompile::PrecompileErrors::Error(
+                    revm::precompile::PrecompileError::other("bn254_add: point not on curve"),
+                ))
+        }
+    };
+
+    let a = parse_g1(padded[0..64].try_into().unwrap())?;
+    let b = parse_g1(padded[64..128].try_into().unwrap())?;
+    let result = a + b;
+
+    let mut output = [0u8; 64];
+    if let Some(affine) = AffineG1::from_jacobian(result) {
+        affine.x().to_big_endian(&mut output[0..32]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_add: output x encoding failed"),
+            )
+        })?;
+        affine.y().to_big_endian(&mut output[32..64]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_add: output y encoding failed"),
+            )
+        })?;
+    }
+    // If result is zero, output stays all-zeros (point at infinity)
+
+    Ok(PrecompileOutput::new(GAS_BN254_ADD, output.to_vec().into()))
+}
+
+// ── 0x0007: BN254 ecMul ─────────────────────────────────────────────────────
+//
+// Input: x(32) || y(32) || scalar(32) = 96 bytes
+// Output: x(32) || y(32)
+// Gas: 6,000
+
+fn precompile_bn254_mul(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use substrate_bn::{AffineG1, Fq, Fr, G1, Group};
+
+    if gas_limit < GAS_BN254_MUL {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    let mut padded = [0u8; 96];
+    let copy = input.len().min(96);
+    padded[..copy].copy_from_slice(&input[..copy]);
+
+    let x = Fq::from_slice(&padded[0..32]).map_err(|_| {
+        revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("bn254_mul: invalid Fq x"),
+        )
+    })?;
+    let y = Fq::from_slice(&padded[32..64]).map_err(|_| {
+        revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("bn254_mul: invalid Fq y"),
+        )
+    })?;
+    let scalar = Fr::from_slice(&padded[64..96]).map_err(|_| {
+        revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("bn254_mul: invalid Fr scalar"),
+        )
+    })?;
+
+    let point: G1 = if x.is_zero() && y.is_zero() {
+        G1::zero()
+    } else {
+        AffineG1::new(x, y)
+            .map(Into::into)
+            .map_err(|_| revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_mul: point not on curve"),
+            ))?
+    };
+
+    let result = point * scalar;
+
+    let mut output = [0u8; 64];
+    if let Some(affine) = AffineG1::from_jacobian(result) {
+        affine.x().to_big_endian(&mut output[0..32]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_mul: output x encoding failed"),
+            )
+        })?;
+        affine.y().to_big_endian(&mut output[32..64]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_mul: output y encoding failed"),
+            )
+        })?;
+    }
+
+    Ok(PrecompileOutput::new(GAS_BN254_MUL, output.to_vec().into()))
+}
+
+// ── 0x0008: BN254 ecPairing ──────────────────────────────────────────────────
+//
+// Input: n × (G1_x(32) || G1_y(32) || G2_x1(32) || G2_x2(32) || G2_y1(32) || G2_y2(32))
+//        = n × 192 bytes
+// Output: 0x01 if product of pairings == GT identity, 0x00 otherwise
+// Gas: 45,000 + 34,000 * n
+
+fn precompile_bn254_pairing(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use substrate_bn::{AffineG1, AffineG2, Fq, Fq2, G1, G2, Group, Gt, pairing_batch};
+
+    if input.len() % 192 != 0 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "bn254_pairing: input length must be multiple of 192",
+            ),
+        ));
+    }
+
+    let n = (input.len() / 192) as u64;
+    let gas = GAS_BN254_PAIRING_BASE + GAS_BN254_PAIRING_PER_PAIR * n;
+
+    if gas_limit < gas {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    // Empty input → return 1 (vacuous truth)
+    if n == 0 {
+        let mut output = vec![0u8; 32];
+        output[31] = 0x01;
+        return Ok(PrecompileOutput::new(gas, output.into()));
+    }
+
+    let mut pairs: Vec<(G1, G2)> = Vec::with_capacity(n as usize);
+
+    for i in 0..(n as usize) {
+        let base = i * 192;
+        let chunk = &input[base..base + 192];
+
+        let ax = Fq::from_slice(&chunk[0..32]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G1 x"),
+            )
+        })?;
+        let ay = Fq::from_slice(&chunk[32..64]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G1 y"),
+            )
+        })?;
+
+        // G2 coordinates: x = (x1, x2), y = (y1, y2) where Fq2 = a + b*i
+        // Ethereum encoding: x_im(32) || x_re(32) || y_im(32) || y_re(32)
+        let bx_im = Fq::from_slice(&chunk[64..96]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G2 x_im"),
+            )
+        })?;
+        let bx_re = Fq::from_slice(&chunk[96..128]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G2 x_re"),
+            )
+        })?;
+        let by_im = Fq::from_slice(&chunk[128..160]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G2 y_im"),
+            )
+        })?;
+        let by_re = Fq::from_slice(&chunk[160..192]).map_err(|_| {
+            revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("bn254_pairing: invalid G2 y_re"),
+            )
+        })?;
+
+        let g1: G1 = if ax.is_zero() && ay.is_zero() {
+            G1::zero()
+        } else {
+            AffineG1::new(ax, ay)
+                .map(Into::into)
+                .map_err(|_| revm::precompile::PrecompileErrors::Error(
+                    revm::precompile::PrecompileError::other("bn254_pairing: G1 not on curve"),
+                ))?
+        };
+
+        let bx = Fq2::new(bx_re, bx_im);
+        let by = Fq2::new(by_re, by_im);
+
+        let g2: G2 = if bx.is_zero() && by.is_zero() {
+            G2::zero()
+        } else {
+            AffineG2::new(bx, by)
+                .map(Into::into)
+                .map_err(|_| revm::precompile::PrecompileErrors::Error(
+                    revm::precompile::PrecompileError::other("bn254_pairing: G2 not on curve"),
+                ))?
+        };
+
+        pairs.push((g1, g2));
+    }
+
+    let result = pairing_batch(&pairs);
+    let success = result == Gt::one();
+
+    let mut output = vec![0u8; 32];
+    if success {
+        output[31] = 0x01;
+    }
+
+    Ok(PrecompileOutput::new(gas, output.into()))
+}
+
+// ── 0x0140: Ed25519 Verify ───────────────────────────────────────────────────
+//
+// Input: pubkey(32) || signature(64) || msg_len_le32(4) || message
+// Output: 0x01 if valid, 0x00 if invalid
+// Gas: 3,000
+
+fn precompile_ed25519_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    use ed25519_consensus::{Signature as Ed25519Sig, VerificationKey};
+
+    if gas_limit < GAS_ED25519_VERIFY {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    // Minimum: pubkey(32) + sig(64) + msg_len(4) = 100 bytes
+    if input.len() < 100 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "ed25519_verify: need >= 100 bytes (pubkey(32) + sig(64) + msg_len(4))",
+            ),
+        ));
+    }
+
+    let pubkey_bytes: [u8; 32] = input[0..32].try_into().unwrap();
+    let sig_bytes: [u8; 64] = input[32..96].try_into().unwrap();
+    let msg_len = u32::from_le_bytes(input[96..100].try_into().unwrap()) as usize;
+
+    if input.len() < 100 + msg_len {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("ed25519_verify: message truncated"),
+        ));
+    }
+
+    let message = &input[100..100 + msg_len];
+
+    let vk = match VerificationKey::try_from(pubkey_bytes) {
+        Ok(k) => k,
+        Err(_) => {
+            return Ok(PrecompileOutput::new(GAS_ED25519_VERIFY, vec![0x00].into()));
+        }
+    };
+
+    let sig = match Ed25519Sig::try_from(sig_bytes) {
+        Ok(s) => s,
+        Err(_) => {
+            return Ok(PrecompileOutput::new(GAS_ED25519_VERIFY, vec![0x00].into()));
+        }
+    };
+
+    let valid = vk.verify(&sig, message).is_ok();
+
+    Ok(PrecompileOutput::new(
+        GAS_ED25519_VERIFY,
+        vec![if valid { 0x01 } else { 0x00 }].into(),
+    ))
 }
 
 // ── 0x0100: Ristretto255 Point Operations ───────────────────────────────────
