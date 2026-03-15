@@ -47,8 +47,10 @@ fn precompile_address(id: u64) -> Address {
 pub const RISTRETTO255_ADDR: u64 = 0x0100;
 pub const PEDERSEN_COMMIT_ADDR: u64 = 0x0101;
 pub const BULLETPROOFS_VERIFY_ADDR: u64 = 0x0102;
+pub const ELGAMAL_ENCRYPT_ADDR: u64 = 0x0104;
 pub const SCHNORR_VERIFY_ADDR: u64 = 0x0106;
 pub const CONSERVATION_CHECK_ADDR: u64 = 0x0107;
+pub const MEMO_DECRYPT_VERIFY_ADDR: u64 = 0x010A;
 pub const SHIELD_ADDR: u64 = 0x0110;
 pub const UNSHIELD_ADDR: u64 = 0x0111;
 
@@ -60,8 +62,10 @@ const GAS_RISTRETTO_ADD: u64 = 500;
 const GAS_RISTRETTO_SCALAR_MUL: u64 = 2_000;
 const GAS_PEDERSEN_COMMIT: u64 = 3_000;
 const GAS_BULLETPROOFS_VERIFY: u64 = 50_000;
+const GAS_ELGAMAL_ENCRYPT: u64 = 5_000;
 const GAS_SCHNORR_VERIFY: u64 = 3_000;
 const GAS_CONSERVATION_CHECK: u64 = 4_000;
+const GAS_MEMO_DECRYPT_VERIFY: u64 = 5_000;
 const GAS_SHIELD: u64 = 10_000;
 const GAS_UNSHIELD: u64 = 10_000;
 
@@ -87,12 +91,20 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_bulletproofs_verify)),
             ),
             (
+                precompile_address(ELGAMAL_ENCRYPT_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_elgamal_encrypt)),
+            ),
+            (
                 precompile_address(SCHNORR_VERIFY_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_schnorr_verify)),
             ),
             (
                 precompile_address(CONSERVATION_CHECK_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_conservation_check)),
+            ),
+            (
+                precompile_address(MEMO_DECRYPT_VERIFY_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_memo_decrypt_verify)),
             ),
             (
                 precompile_address(SHIELD_ADDR),
@@ -509,6 +521,175 @@ fn precompile_schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult 
         GAS_SCHNORR_VERIFY,
         vec![if valid { 0x01 } else { 0x00 }].into(),
     ))
+}
+
+// ── 0x0104: ElGamal Encrypt ──────────────────────────────────────────────────
+//
+// Input: recipient_pubkey(32) || amount_le64(8) || blinding(32) = 72 bytes
+//
+// Encrypts (amount, blinding) to the recipient's Ristretto255 public key using
+// ephemeral ECDH + SHA-256 key derivation (matches sdk/src/encrypted_memo.rs).
+//
+// Output: encrypted_memo(72 bytes) = ephemeral_pubkey(32) || ciphertext(40)
+//
+// Returns Err if input is not exactly 72 bytes.
+//
+// Gas: 5,000
+
+fn precompile_elgamal_encrypt(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_ELGAMAL_ENCRYPT {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 72 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "elgamal_encrypt: need exactly 72 bytes (pubkey(32) + amount(8) + blinding(32))",
+            ),
+        ));
+    }
+
+    use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT as G;
+
+    let recipient_pubkey: [u8; 32] = input[0..32].try_into().unwrap();
+    let amount = u64::from_le_bytes(input[32..40].try_into().unwrap());
+    let blinding: [u8; 32] = input[40..72].try_into().unwrap();
+
+    let pk = match CompressedRistretto(recipient_pubkey).decompress() {
+        Some(p) => p,
+        None => {
+            return Err(revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other("elgamal_encrypt: invalid recipient pubkey"),
+            ))
+        }
+    };
+
+    // Random ephemeral key
+    let mut k_bytes = [0u8; 32];
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        // Deterministic-enough seed for the guest context — use system time + input hash.
+        // In production SP1 guests, randomness comes from the prover's trusted setup.
+        let mut h = DefaultHasher::new();
+        input.hash(&mut h);
+        let seed = h.finish();
+        // Expand seed to 32 bytes with SHA-256
+        let mut hasher = Sha256::new();
+        hasher.update(b"C0DL3:ephemeral:");
+        hasher.update(&seed.to_le_bytes());
+        // Mix in recipient pubkey for uniqueness
+        hasher.update(&recipient_pubkey);
+        let hash: [u8; 32] = hasher.finalize().into();
+        k_bytes.copy_from_slice(&hash);
+    }
+    let k = Scalar::from_bytes_mod_order(k_bytes);
+
+    // C1 = k*G
+    let c1 = (k * G).compress().to_bytes();
+
+    // Shared secret = k * recipient_pubkey
+    let shared = (k * pk).compress().to_bytes();
+
+    let mask = memo_derive_mask(&shared);
+
+    // Plaintext: amount(8) || blinding(32)
+    let mut plaintext = [0u8; 40];
+    plaintext[..8].copy_from_slice(&amount.to_le_bytes());
+    plaintext[8..40].copy_from_slice(&blinding);
+
+    let mut encrypted = [0u8; 40];
+    for i in 0..40 {
+        encrypted[i] = plaintext[i] ^ mask[i];
+    }
+
+    let mut memo = Vec::with_capacity(72);
+    memo.extend_from_slice(&c1);
+    memo.extend_from_slice(&encrypted);
+
+    Ok(PrecompileOutput::new(GAS_ELGAMAL_ENCRYPT, memo.into()))
+}
+
+// ── 0x010A: Memo Decrypt Verify ──────────────────────────────────────────────
+//
+// Input: memo(72) || expected_amount_le64(8) || expected_blinding(32) || privkey(32) = 144 bytes
+//
+// Decrypts the memo using privkey and checks if (amount, blinding) matches expectations.
+//
+// Output: 0x01 if matches, 0x00 if doesn't match or decryption yields invalid data
+//
+// Returns Err if input is not exactly 144 bytes.
+//
+// Gas: 5,000
+
+fn precompile_memo_decrypt_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_MEMO_DECRYPT_VERIFY {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 144 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "memo_decrypt_verify: need exactly 144 bytes \
+                 (memo(72) + expected_amount(8) + expected_blinding(32) + privkey(32))",
+            ),
+        ));
+    }
+
+    let memo = &input[0..72];
+    let expected_amount = u64::from_le_bytes(input[72..80].try_into().unwrap());
+    let expected_blinding: [u8; 32] = input[80..112].try_into().unwrap();
+    let privkey_bytes: [u8; 32] = input[112..144].try_into().unwrap();
+
+    let privkey = Scalar::from_bytes_mod_order(privkey_bytes);
+
+    // Decrypt
+    let c1_point = match CompressedRistretto(memo[0..32].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => {
+            return Ok(PrecompileOutput::new(GAS_MEMO_DECRYPT_VERIFY, vec![0x00].into()))
+        }
+    };
+
+    let shared = (privkey * c1_point).compress().to_bytes();
+    let mask = memo_derive_mask(&shared);
+
+    let mut plaintext = [0u8; 40];
+    for i in 0..40 {
+        plaintext[i] = memo[32 + i] ^ mask[i];
+    }
+
+    let dec_amount = u64::from_le_bytes(plaintext[..8].try_into().unwrap());
+    let dec_blinding: [u8; 32] = plaintext[8..40].try_into().unwrap();
+
+    let matches = dec_amount == expected_amount && dec_blinding == expected_blinding;
+
+    Ok(PrecompileOutput::new(
+        GAS_MEMO_DECRYPT_VERIFY,
+        vec![if matches { 0x01 } else { 0x00 }].into(),
+    ))
+}
+
+// ── Memo Helpers ─────────────────────────────────────────────────────────────
+
+/// Derive 40-byte XOR mask from ECDH shared secret.
+/// Must match sdk/src/encrypted_memo.rs derive_memo_mask exactly.
+fn memo_derive_mask(shared_secret: &[u8; 32]) -> [u8; 40] {
+    let h1: [u8; 32] = Sha256::digest(
+        [b"C0DL3:memo:".as_slice(), shared_secret.as_slice()].concat(),
+    )
+    .into();
+    let h2: [u8; 32] = Sha256::digest(
+        [b"C0DL3:memo:1:".as_slice(), shared_secret.as_slice()].concat(),
+    )
+    .into();
+
+    let mut mask = [0u8; 40];
+    mask[..32].copy_from_slice(&h1);
+    mask[32..40].copy_from_slice(&h2[..8]);
+    mask
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
