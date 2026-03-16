@@ -221,25 +221,7 @@ pub enum BlockProofStatus {
 // Rollup state (real state transitions)
 // ──────────────────────────────────────────────
 
-fn default_wallet_type() -> crate::aa::types::WalletType {
-    crate::aa::types::WalletType::LegacyEOA
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccountState {
-    /// Pedersen commitment to balance: C = balance·G + r·H
-    /// Published on-chain — hides balance from external observers.
-    pub balance_commitment: [u8; 32],
-    /// Plaintext balance kept for sequencer-internal execution.
-    /// Trusted testnet model: sequencer knows amounts, observers don't.
-    pub balance: u64,  // In fwei (1 fwei = 0.001 HEAT = 1,000,000 gwei)
-    pub nonce: u64,
-    #[serde(default = "default_wallet_type")]
-    pub wallet_type: crate::aa::types::WalletType,
-    /// Owner public key (Ristretto255 compressed). Only set for PrivateWallet accounts.
-    #[serde(default)]
-    pub owner_pubkey: Option<[u8; 32]>,
-}
+pub use crate::aa::types::AccountState;
 
 #[derive(Debug, Clone)]
 pub struct RollupState {

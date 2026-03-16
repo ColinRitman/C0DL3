@@ -86,6 +86,28 @@ pub struct KnowledgeProofBytes {
     pub response_r: [u8; 32],
 }
 
+/// Default wallet type for deserialization of legacy data.
+fn default_wallet_type() -> WalletType {
+    WalletType::LegacyEOA
+}
+
+/// On-chain account state for every wallet.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountState {
+    /// Pedersen commitment to balance: C = balance*G + r*H
+    /// Published on-chain — hides balance from external observers.
+    pub balance_commitment: [u8; 32],
+    /// Plaintext balance kept for sequencer-internal execution.
+    /// Trusted testnet model: sequencer knows amounts, observers don't.
+    pub balance: u64,  // In fwei (1 fwei = 0.001 HEAT = 1,000,000 gwei)
+    pub nonce: u64,
+    #[serde(default = "default_wallet_type")]
+    pub wallet_type: WalletType,
+    /// Owner public key (Ristretto255 compressed). Only set for PrivateWallet accounts.
+    #[serde(default)]
+    pub owner_pubkey: Option<[u8; 32]>,
+}
+
 /// Paymaster approval — a signed statement that a paymaster will cover gas.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymasterApproval {
