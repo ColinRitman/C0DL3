@@ -1224,6 +1224,10 @@ impl C0DL3ZkSyncNode {
             .route("/unshield", post(accept_unshield))
             .route("/shield/note_tree", get(get_note_tree_info))
 
+            // Account Abstraction
+            .route("/aa/create_wallet", post(create_aa_wallet))
+            .route("/aa/send", post(aa_send))
+
             // Prover market
             .route("/proof/submit", post(submit_proof))
             .route("/proof/pending", get(get_pending_proofs))
@@ -1673,6 +1677,12 @@ async fn verify_private_transaction(
 // The sequencer NEVER sees plaintext amounts, blinding factors, or spend keys.
 // It only verifies that the cryptographic proofs are well-formed (early rejection).
 // The SP1 guest re-verifies everything inside the ZK circuit for trustless finality.
+
+#[derive(Debug, Deserialize)]
+struct CreateWalletRequest {
+    owner_pubkey: String,  // hex-encoded 32-byte pubkey
+    salt: Option<String>,  // optional hex salt for deterministic address
+}
 
 /// Shield request — deposit from EVM into shielded pool.
 /// The wallet generates the commitment and proofs client-side.
@@ -2142,6 +2152,136 @@ async fn get_economics(State(state): State<AppState>) -> Json<serde_json::Value>
             "apy_range": "8%–69% (staggered per tier)",
         },
     }))
+}
+
+// ──────────────────────────────────────────────
+// Account Abstraction endpoints
+// ──────────────────────────────────────────────
+
+/// POST /aa/create_wallet — create a new AA PrivateWallet account.
+async fn create_aa_wallet(
+    State(state): State<AppState>,
+    Json(body): Json<CreateWalletRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Parse owner_pubkey from hex
+    let pubkey_bytes = match hex::decode(body.owner_pubkey.trim_start_matches("0x")) {
+        Ok(b) if b.len() == 32 => {
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&b);
+            arr
+        }
+        _ => return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": "invalid owner_pubkey: expected 64 hex chars"
+        })))),
+    };
+
+    let salt = match &body.salt {
+        Some(s) => {
+            match hex::decode(s.trim_start_matches("0x")) {
+                Ok(b) if b.len() == 32 => {
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&b);
+                    arr
+                }
+                _ => return Err((StatusCode::BAD_REQUEST, Json(json!({
+                    "error": "invalid salt: expected 64 hex chars"
+                })))),
+            }
+        }
+        None => [0u8; 32],
+    };
+
+    let address = aa::wallet_factory::derive_wallet_address(&pubkey_bytes, &salt);
+    let account = aa::wallet_factory::create_wallet_account(&address, pubkey_bytes);
+
+    let node = state.node.lock().unwrap();
+    let mut rollup = node.rollup_state.lock().unwrap();
+    let balance_commitment = account.balance_commitment;
+    rollup.accounts.insert(address.clone(), account);
+    rollup.compute_state_root();
+
+    Ok(Json(json!({
+        "address": address,
+        "wallet_type": "PrivateWallet",
+        "balance_commitment": hex::encode(balance_commitment),
+    })))
+}
+
+/// POST /aa/send — submit and execute a UserOperation (AA private transfer).
+async fn aa_send(
+    State(state): State<AppState>,
+    Json(op): Json<aa::types::UserOperation>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let node = state.node.lock().unwrap();
+    let mut rollup = node.rollup_state.lock().unwrap();
+
+    // Verify sender exists and is a PrivateWallet
+    let sender = match rollup.accounts.get(&op.sender) {
+        Some(a) => a.clone(),
+        None => return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": "sender account not found"
+        })))),
+    };
+
+    if sender.wallet_type != aa::types::WalletType::PrivateWallet {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": "sender is not a PrivateWallet (use /submit_transaction for legacy EOA)"
+        }))));
+    }
+
+    let sender_pubkey = match sender.owner_pubkey {
+        Some(pk) => pk,
+        None => return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": "sender has no owner_pubkey"
+        })))),
+    };
+
+    // Get or create recipient
+    let recipient_commit = rollup.accounts
+        .get(&op.to)
+        .map(|a| a.balance_commitment)
+        .unwrap_or_else(|| compute_balance_commitment(&op.to, 0, 0));
+
+    // Validate the UserOperation
+    match aa::validation::validate_user_operation(
+        &op,
+        &sender_pubkey,
+        &sender.balance_commitment,
+        &recipient_commit,
+    ) {
+        Ok(()) => {},
+        Err(e) => return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": format!("validation failed: {}", e)
+        })))),
+    }
+
+    // Apply: update commitments
+    rollup.accounts
+        .entry(op.sender.clone())
+        .and_modify(|a| {
+            a.balance_commitment = op.sender_new_commitment;
+            a.nonce += 1;
+        });
+
+    // Create/update recipient
+    rollup.accounts
+        .entry(op.to.clone())
+        .or_insert_with(|| AccountState {
+            balance_commitment: compute_balance_commitment(&op.to, 0, 0),
+            balance: 0,
+            nonce: 0,
+            wallet_type: aa::types::WalletType::PrivateWallet,
+            owner_pubkey: None,
+        })
+        .balance_commitment = op.recipient_new_commitment;
+
+    rollup.compute_state_root();
+
+    Ok(Json(json!({
+        "status": "accepted",
+        "sender_new_commitment": hex::encode(op.sender_new_commitment),
+        "recipient_new_commitment": hex::encode(op.recipient_new_commitment),
+    })))
 }
 
 // ──────────────────────────────────────────────
