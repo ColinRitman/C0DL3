@@ -16,6 +16,9 @@ pub mod simple_visual_cli;
 #[cfg(feature = "cli-ui")]
 pub mod cli_interface;
 
+// Account Abstraction: types, Schnorr auth, validation
+pub mod aa;
+
 // Crypto primitives: Poseidon hash, threshold proofs
 pub mod crypto;
 
