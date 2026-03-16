@@ -16,6 +16,9 @@ pub mod simple_visual_cli;
 #[cfg(feature = "cli-ui")]
 pub mod cli_interface;
 
+// Crypto primitives: Poseidon hash, threshold proofs
+pub mod crypto;
+
 // Expose security utilities to library users
 pub mod security;
 

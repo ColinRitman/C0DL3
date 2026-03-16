@@ -57,6 +57,12 @@ pub struct AccountWitness {
     /// the SP1 proof fails.
     #[serde(default)]
     pub precomputed_commitment: Option<[u8; 32]>,
+    /// 0 = LegacyEOA, 1 = PrivateWallet (plain u8 for guest simplicity)
+    #[serde(default)]
+    pub wallet_type: u8,
+    /// Owner public key for PrivateWallet accounts.
+    #[serde(default)]
+    pub owner_pubkey: Option<[u8; 32]>,
 }
 
 // ── Balance Commitment ──────────────────────────────────────────────────────
@@ -313,6 +319,8 @@ pub fn build_post_state(
                 // EVM-touched accounts: recompute commitment from plaintext
                 // (the prover already knows these balances from EVM execution)
                 precomputed_commitment: None,
+                wallet_type: 0,
+                owner_pubkey: None,
             },
         );
     }

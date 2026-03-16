@@ -12,6 +12,11 @@
 //   0x0107: Conservation check (Pedersen commitment balance)
 //   0x0110: Shield (EVM → shielded pool deposit)
 //   0x0111: Unshield (shielded pool → EVM withdrawal)
+//   0x0103: Poseidon hash (algebraic ZK-friendly hash)
+//   0x0120: Private swap (conservation check for 2-party swaps)
+//   0x0121: Threshold proof (verify committed value >= threshold)
+//   0x0122: Commitment arithmetic (add/subtract Pedersen commitments)
+//   0x0132: Batch Schnorr verify (verify N Schnorr signatures in one call)
 //   0x0201: P-256 (secp256r1) signature verify — WebAuthn/Passkeys
 //
 // All precompiles follow the standard revm convention:
@@ -65,6 +70,16 @@ pub const SHIELD_ADDR: u64 = 0x0110;
 pub const UNSHIELD_ADDR: u64 = 0x0111;
 // Ed25519 — HEAT/COLD verifier contracts + Cosmos/Solana bridge sigs
 pub const ED25519_VERIFY_ADDR: u64 = 0x0140;
+// Poseidon hash — ZK-friendly algebraic hash for Merkle trees / nullifiers
+pub const POSEIDON_HASH_ADDR: u64 = 0x0103;
+// Private swap — conservation check for 2-party atomic swaps
+pub const PRIVATE_SWAP_ADDR: u64 = 0x0120;
+// Threshold proof — verify committed value >= threshold via shifted range proof
+pub const THRESHOLD_PROOF_ADDR: u64 = 0x0121;
+// Commitment arithmetic — add/subtract Pedersen commitments
+pub const COMMITMENT_ARITH_ADDR: u64 = 0x0122;
+// Batch Schnorr verify — verify N Schnorr signatures in one call
+pub const BATCH_SCHNORR_VERIFY_ADDR: u64 = 0x0132;
 // P-256 / secp256r1 — WebAuthn/Passkeys (Face ID, Touch ID, YubiKey)
 pub const P256_VERIFY_ADDR: u64 = 0x0201;
 
@@ -94,6 +109,11 @@ const GAS_CONSERVATION_CHECK: u64 = 4_000;
 const GAS_MEMO_DECRYPT_VERIFY: u64 = 5_000;
 const GAS_SHIELD: u64 = 10_000;
 const GAS_UNSHIELD: u64 = 10_000;
+const GAS_POSEIDON_HASH: u64 = 1_500;
+const GAS_PRIVATE_SWAP: u64 = 8_000;
+const GAS_THRESHOLD_PROOF: u64 = 50_000;
+const GAS_COMMITMENT_ARITH: u64 = 1_500;
+const GAS_BATCH_SCHNORR_PER_SIG: u64 = 2_000;
 
 // ── Handler Registration ────────────────────────────────────────────────────
 
@@ -173,6 +193,27 @@ pub fn register_cold_precompiles<EXT, DB: Database>(handler: &mut EvmHandler<'_,
             (
                 precompile_address(P256_VERIFY_ADDR),
                 ContextPrecompile::Ordinary(Precompile::Standard(precompile_p256_verify)),
+            ),
+            // New C0DL3 precompiles (tasks 4b–4f)
+            (
+                precompile_address(POSEIDON_HASH_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_poseidon_hash)),
+            ),
+            (
+                precompile_address(PRIVATE_SWAP_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_private_swap)),
+            ),
+            (
+                precompile_address(THRESHOLD_PROOF_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_threshold_proof)),
+            ),
+            (
+                precompile_address(COMMITMENT_ARITH_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_commitment_arithmetic)),
+            ),
+            (
+                precompile_address(BATCH_SCHNORR_VERIFY_ADDR),
+                ContextPrecompile::Ordinary(Precompile::Standard(precompile_batch_schnorr_verify)),
             ),
         ]);
         precompiles
@@ -1406,6 +1447,353 @@ fn precompile_conservation_check(input: &Bytes, gas_limit: u64) -> PrecompileRes
     ))
 }
 
+// ── 0x0103: Poseidon Hash ─────────────────────────────────────────────────────
+//
+// Input: left(32) || right(32) = 64 bytes
+// Output: hash(32)
+//
+// ZK-friendly algebraic hash using Ristretto255 scalar field.
+
+fn precompile_poseidon_hash(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_POSEIDON_HASH {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 64 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "poseidon_hash: need exactly 64 bytes (left(32) || right(32))",
+            ),
+        ));
+    }
+
+    let left: [u8; 32] = input[0..32].try_into().unwrap();
+    let right: [u8; 32] = input[32..64].try_into().unwrap();
+
+    let hash = poseidon_hash_impl(&left, &right);
+
+    Ok(PrecompileOutput::new(GAS_POSEIDON_HASH, hash.to_vec().into()))
+}
+
+/// Inline Poseidon-like hash using Ristretto255 scalar field.
+fn poseidon_hash_impl(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+    use sha2::Digest as _;
+    const FULL_ROUNDS: usize = 8;
+    const PARTIAL_ROUNDS: usize = 57;
+    const WIDTH: usize = 3;
+    const DOMAIN: &[u8] = b"C0DL3:poseidon:";
+
+    fn rc(round: usize, pos: usize) -> Scalar {
+        let mut h = Sha256::new();
+        h.update(DOMAIN);
+        h.update(b"rc:");
+        h.update((round as u64).to_le_bytes());
+        h.update((pos as u64).to_le_bytes());
+        let hash: [u8; 32] = h.finalize().into();
+        Scalar::from_bytes_mod_order(hash)
+    }
+
+    #[inline]
+    fn sbox(x: Scalar) -> Scalar { x * x * x }
+
+    fn mds(s: &mut [Scalar; WIDTH]) {
+        let (s0, s1, s2) = (s[0], s[1], s[2]);
+        let two = Scalar::from(2u64);
+        s[0] = two * s0 + s1 + s2;
+        s[1] = s0 + two * s1 + s2;
+        s[2] = s0 + s1 + two * s2;
+    }
+
+    let cap = {
+        let mut h = Sha256::new();
+        h.update(DOMAIN);
+        h.update(b"capacity");
+        let hash: [u8; 32] = h.finalize().into();
+        Scalar::from_bytes_mod_order(hash)
+    };
+
+    let mut state: [Scalar; WIDTH] = [
+        Scalar::from_bytes_mod_order(*left),
+        Scalar::from_bytes_mod_order(*right),
+        cap,
+    ];
+
+    let half = FULL_ROUNDS / 2;
+    let mut ri = 0usize;
+
+    for _ in 0..half {
+        for j in 0..WIDTH { state[j] += rc(ri, j); }
+        for j in 0..WIDTH { state[j] = sbox(state[j]); }
+        mds(&mut state);
+        ri += 1;
+    }
+    for _ in 0..PARTIAL_ROUNDS {
+        for j in 0..WIDTH { state[j] += rc(ri, j); }
+        state[0] = sbox(state[0]);
+        mds(&mut state);
+        ri += 1;
+    }
+    for _ in 0..half {
+        for j in 0..WIDTH { state[j] += rc(ri, j); }
+        for j in 0..WIDTH { state[j] = sbox(state[j]); }
+        mds(&mut state);
+        ri += 1;
+    }
+
+    state[0].to_bytes()
+}
+
+// ── 0x0120: Private Swap ─────────────────────────────────────────────────────
+//
+// Input: party_a_old(32) || party_a_new(32) || party_b_old(32) || party_b_new(32) = 128 bytes
+// Output: 0x01 (balanced) or 0x00 (not balanced)
+//
+// Verifies that delta_a + delta_b == identity (conservation of value in a 2-party swap).
+
+fn precompile_private_swap(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_PRIVATE_SWAP {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 128 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "private_swap: need exactly 128 bytes \
+                 (party_a_old(32) + party_a_new(32) + party_b_old(32) + party_b_new(32))",
+            ),
+        ));
+    }
+
+    let a_old = match CompressedRistretto(input[0..32].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_PRIVATE_SWAP, vec![0x00].into())),
+    };
+    let a_new = match CompressedRistretto(input[32..64].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_PRIVATE_SWAP, vec![0x00].into())),
+    };
+    let b_old = match CompressedRistretto(input[64..96].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_PRIVATE_SWAP, vec![0x00].into())),
+    };
+    let b_new = match CompressedRistretto(input[96..128].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_PRIVATE_SWAP, vec![0x00].into())),
+    };
+
+    let delta_a = a_old - a_new;
+    let delta_b = b_old - b_new;
+    let excess = delta_a + delta_b;
+    let balanced = excess == RistrettoPoint::identity();
+
+    Ok(PrecompileOutput::new(
+        GAS_PRIVATE_SWAP,
+        vec![if balanced { 0x01 } else { 0x00 }].into(),
+    ))
+}
+
+// ── 0x0121: Threshold Proof ──────────────────────────────────────────────────
+//
+// Input: commitment(32) || threshold_le64(8) || proof_len_le32(4) || proof_bytes
+// Output: 0x01 (value >= threshold) or 0x00
+//
+// Verifies a Bulletproofs range proof on C' = C - threshold*B.
+
+fn precompile_threshold_proof(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_THRESHOLD_PROOF {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() < 44 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "threshold_proof: need >= 44 bytes (commitment(32) + threshold(8) + proof_len(4))",
+            ),
+        ));
+    }
+
+    let commitment_bytes: [u8; 32] = input[0..32].try_into().unwrap();
+    let threshold = u64::from_le_bytes(input[32..40].try_into().unwrap());
+    let proof_len = u32::from_le_bytes(input[40..44].try_into().unwrap()) as usize;
+
+    if input.len() < 44 + proof_len {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("threshold_proof: proof truncated"),
+        ));
+    }
+
+    let proof_bytes = &input[44..44 + proof_len];
+
+    // Decompress commitment
+    let c_point = match CompressedRistretto(commitment_bytes).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_THRESHOLD_PROOF, vec![0x00].into())),
+    };
+
+    // Shift: C' = C - threshold * B
+    let pc_gens = PedersenGens::default();
+    let mut threshold_padded = [0u8; 32];
+    threshold_padded[..8].copy_from_slice(&threshold.to_le_bytes());
+    let threshold_scalar = Scalar::from_bytes_mod_order(threshold_padded);
+    let c_prime = c_point - threshold_scalar * pc_gens.B;
+    let c_prime_compressed = c_prime.compress();
+
+    // Deserialize proof
+    let rp = match RangeProof::from_bytes(proof_bytes) {
+        Ok(rp) => rp,
+        Err(_) => return Ok(PrecompileOutput::new(GAS_THRESHOLD_PROOF, vec![0x00].into())),
+    };
+
+    // Verify
+    let bp_gens = BulletproofGens::new(64, 128);
+    let mut transcript = Transcript::new(b"C0DL3-ThresholdProof");
+    let valid = rp
+        .verify_single(&bp_gens, &pc_gens, &mut transcript, &c_prime_compressed, 64)
+        .is_ok();
+
+    Ok(PrecompileOutput::new(
+        GAS_THRESHOLD_PROOF,
+        vec![if valid { 0x01 } else { 0x00 }].into(),
+    ))
+}
+
+// ── 0x0122: Commitment Arithmetic ────────────────────────────────────────────
+//
+// Input: op(1) || commitment_a(32) || commitment_b(32) = 65 bytes
+//   op = 0x01: add (C_a + C_b)
+//   op = 0x02: subtract (C_a - C_b)
+// Output: result_commitment(32) or empty on error
+
+fn precompile_commitment_arithmetic(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if gas_limit < GAS_COMMITMENT_ARITH {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+    if input.len() != 65 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "commitment_arithmetic: need exactly 65 bytes (op(1) + commitment_a(32) + commitment_b(32))",
+            ),
+        ));
+    }
+
+    let op = input[0];
+    let a = match CompressedRistretto(input[1..33].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_COMMITMENT_ARITH, Bytes::new())),
+    };
+    let b = match CompressedRistretto(input[33..65].try_into().unwrap()).decompress() {
+        Some(p) => p,
+        None => return Ok(PrecompileOutput::new(GAS_COMMITMENT_ARITH, Bytes::new())),
+    };
+
+    let result = match op {
+        0x01 => a + b,
+        0x02 => a - b,
+        _ => return Ok(PrecompileOutput::new(GAS_COMMITMENT_ARITH, Bytes::new())),
+    };
+
+    Ok(PrecompileOutput::new(
+        GAS_COMMITMENT_ARITH,
+        result.compress().to_bytes().to_vec().into(),
+    ))
+}
+
+// ── 0x0132: Batch Schnorr Verify ─────────────────────────────────────────────
+//
+// Input: count_le32(4) || [pubkey(32) || sig_r(32) || sig_s(32) || msg_len_le32(4) || message] × count
+// Output: 0x01 (all valid) or 0x00 (any invalid)
+
+fn precompile_batch_schnorr_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
+    if input.len() < 4 {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other(
+                "batch_schnorr_verify: need >= 4 bytes (count)",
+            ),
+        ));
+    }
+
+    let count = u32::from_le_bytes(input[0..4].try_into().unwrap()) as usize;
+    let total_gas = GAS_BATCH_SCHNORR_PER_SIG.saturating_mul(count as u64).max(GAS_BATCH_SCHNORR_PER_SIG);
+
+    if gas_limit < total_gas {
+        return Err(revm::precompile::PrecompileErrors::Error(
+            revm::precompile::PrecompileError::other("out of gas"),
+        ));
+    }
+
+    use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT as G;
+
+    let mut offset = 4usize;
+
+    for _ in 0..count {
+        // Need at least 100 bytes for pubkey(32) + sig_r(32) + sig_s(32) + msg_len(4)
+        if input.len() < offset + 100 {
+            return Err(revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other(
+                    "batch_schnorr_verify: signature entry truncated",
+                ),
+            ));
+        }
+
+        let pubkey: [u8; 32] = input[offset..offset + 32].try_into().unwrap();
+        let sig_r: [u8; 32] = input[offset + 32..offset + 64].try_into().unwrap();
+        let sig_s: [u8; 32] = input[offset + 64..offset + 96].try_into().unwrap();
+        let msg_len =
+            u32::from_le_bytes(input[offset + 96..offset + 100].try_into().unwrap()) as usize;
+
+        if input.len() < offset + 100 + msg_len {
+            return Err(revm::precompile::PrecompileErrors::Error(
+                revm::precompile::PrecompileError::other(
+                    "batch_schnorr_verify: message truncated",
+                ),
+            ));
+        }
+
+        let message = &input[offset + 100..offset + 100 + msg_len];
+        offset += 100 + msg_len;
+
+        // Decompress pubkey
+        let pk_point = match CompressedRistretto(pubkey).decompress() {
+            Some(p) => p,
+            None => return Ok(PrecompileOutput::new(total_gas, vec![0x00].into())),
+        };
+
+        // Decompress R
+        let r_point = match CompressedRistretto(sig_r).decompress() {
+            Some(p) => p,
+            None => return Ok(PrecompileOutput::new(total_gas, vec![0x00].into())),
+        };
+
+        // Challenge: e = SHA-256("C0DL3:schnorr:" || R || pubkey || msg)
+        let e = {
+            let mut hasher = Sha256::new();
+            hasher.update(b"C0DL3:schnorr:");
+            hasher.update(&sig_r);
+            hasher.update(&pubkey);
+            hasher.update(message);
+            let hash: [u8; 32] = hasher.finalize().into();
+            Scalar::from_bytes_mod_order(hash)
+        };
+
+        let s = Scalar::from_bytes_mod_order(sig_s);
+
+        // Verify: s*G == R + e*pubkey
+        let lhs = s * G;
+        let rhs = r_point + e * pk_point;
+
+        if lhs != rhs {
+            return Ok(PrecompileOutput::new(total_gas, vec![0x00].into()));
+        }
+    }
+
+    Ok(PrecompileOutput::new(total_gas, vec![0x01].into()))
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1483,5 +1871,353 @@ mod tests {
         let input = Bytes::from(vec![0u8; 64]);
         let result = precompile_conservation_check(&input, GAS_CONSERVATION_CHECK);
         assert!(result.is_err(), "wrong-length input should error");
+    }
+
+    // ── Poseidon Hash Tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_poseidon_precompile_deterministic() {
+        let a = [0x01u8; 32];
+        let b = [0x02u8; 32];
+        let mut input = Vec::with_capacity(64);
+        input.extend_from_slice(&a);
+        input.extend_from_slice(&b);
+
+        let r1 = precompile_poseidon_hash(&Bytes::from(input.clone()), GAS_POSEIDON_HASH).unwrap();
+        let r2 = precompile_poseidon_hash(&Bytes::from(input), GAS_POSEIDON_HASH).unwrap();
+        assert_eq!(r1.bytes, r2.bytes, "Poseidon must be deterministic");
+        assert_eq!(r1.bytes.len(), 32);
+    }
+
+    #[test]
+    fn test_poseidon_precompile_different_inputs() {
+        let a = [0x01u8; 32];
+        let b = [0x02u8; 32];
+        let c = [0x03u8; 32];
+
+        let mut in1 = Vec::with_capacity(64);
+        in1.extend_from_slice(&a);
+        in1.extend_from_slice(&b);
+        let mut in2 = Vec::with_capacity(64);
+        in2.extend_from_slice(&a);
+        in2.extend_from_slice(&c);
+
+        let r1 = precompile_poseidon_hash(&Bytes::from(in1), GAS_POSEIDON_HASH).unwrap();
+        let r2 = precompile_poseidon_hash(&Bytes::from(in2), GAS_POSEIDON_HASH).unwrap();
+        assert_ne!(r1.bytes, r2.bytes, "Different inputs must differ");
+    }
+
+    #[test]
+    fn test_poseidon_precompile_not_commutative() {
+        let a = [0x01u8; 32];
+        let b = [0x02u8; 32];
+
+        let mut in_ab = Vec::with_capacity(64);
+        in_ab.extend_from_slice(&a);
+        in_ab.extend_from_slice(&b);
+        let mut in_ba = Vec::with_capacity(64);
+        in_ba.extend_from_slice(&b);
+        in_ba.extend_from_slice(&a);
+
+        let r_ab = precompile_poseidon_hash(&Bytes::from(in_ab), GAS_POSEIDON_HASH).unwrap();
+        let r_ba = precompile_poseidon_hash(&Bytes::from(in_ba), GAS_POSEIDON_HASH).unwrap();
+        assert_ne!(r_ab.bytes, r_ba.bytes, "hash(a,b) != hash(b,a)");
+    }
+
+    #[test]
+    fn test_poseidon_precompile_wrong_length() {
+        let input = Bytes::from(vec![0u8; 32]);
+        assert!(precompile_poseidon_hash(&input, GAS_POSEIDON_HASH).is_err());
+    }
+
+    // ── Private Swap Tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_private_swap_balanced() {
+        let gens = PedersenGens::default();
+
+        // A has 100, sends 30 to B. B has 50, sends 30 back to A (balanced).
+        let r1 = Scalar::from_bytes_mod_order([0x11u8; 32]);
+        let r2 = Scalar::from_bytes_mod_order([0x22u8; 32]);
+        let r3 = Scalar::from_bytes_mod_order([0x33u8; 32]);
+        // For balance: (a_old - a_new) + (b_old - b_new) = identity
+        // => blinding conservation: (r1 - r2) + (r3 - r4) = 0 => r4 = r3 + (r1 - r2)
+        let r4 = r3 + (r1 - r2);
+
+        let a_old = gens.commit(Scalar::from(100u64), r1).compress().to_bytes();
+        let a_new = gens.commit(Scalar::from(70u64), r2).compress().to_bytes();
+        let b_old = gens.commit(Scalar::from(50u64), r3).compress().to_bytes();
+        let b_new = gens.commit(Scalar::from(80u64), r4).compress().to_bytes();
+
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&a_old);
+        input.extend_from_slice(&a_new);
+        input.extend_from_slice(&b_old);
+        input.extend_from_slice(&b_new);
+
+        let result = precompile_private_swap(&Bytes::from(input), GAS_PRIVATE_SWAP).unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x01], "balanced swap should pass");
+    }
+
+    #[test]
+    fn test_private_swap_unbalanced() {
+        let gens = PedersenGens::default();
+        let r1 = Scalar::from_bytes_mod_order([0xAAu8; 32]);
+        let r2 = Scalar::from_bytes_mod_order([0xBBu8; 32]);
+        let r3 = Scalar::from_bytes_mod_order([0xCCu8; 32]);
+        let r4 = Scalar::from_bytes_mod_order([0xDDu8; 32]);
+
+        let a_old = gens.commit(Scalar::from(100u64), r1).compress().to_bytes();
+        let a_new = gens.commit(Scalar::from(70u64), r2).compress().to_bytes();
+        let b_old = gens.commit(Scalar::from(50u64), r3).compress().to_bytes();
+        let b_new = gens.commit(Scalar::from(90u64), r4).compress().to_bytes();
+
+        let mut input = Vec::with_capacity(128);
+        input.extend_from_slice(&a_old);
+        input.extend_from_slice(&a_new);
+        input.extend_from_slice(&b_old);
+        input.extend_from_slice(&b_new);
+
+        let result = precompile_private_swap(&Bytes::from(input), GAS_PRIVATE_SWAP).unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x00], "unbalanced swap should fail");
+    }
+
+    // ── Threshold Proof Tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_threshold_proof_precompile_valid() {
+        let blinding = Scalar::from_bytes_mod_order([0x42u8; 32]);
+        let value = 1000u64;
+        let threshold = 500u64;
+        let diff = value - threshold;
+
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 128);
+
+        // Commit to value
+        let mut v_padded = [0u8; 32];
+        v_padded[..8].copy_from_slice(&value.to_le_bytes());
+        let v_scalar = Scalar::from_bytes_mod_order(v_padded);
+        let commitment = pc_gens.commit(v_scalar, blinding).compress().to_bytes();
+
+        // Prove diff is in range
+        let mut transcript = Transcript::new(b"C0DL3-ThresholdProof");
+        let (rp, _) = RangeProof::prove_single(
+            &bp_gens, &pc_gens, &mut transcript, diff, &blinding, 64,
+        )
+        .unwrap();
+        let rp_bytes = rp.to_bytes();
+
+        // Build precompile input
+        let mut input = Vec::new();
+        input.extend_from_slice(&commitment);
+        input.extend_from_slice(&threshold.to_le_bytes());
+        input.extend_from_slice(&(rp_bytes.len() as u32).to_le_bytes());
+        input.extend_from_slice(&rp_bytes);
+
+        let result =
+            precompile_threshold_proof(&Bytes::from(input), GAS_THRESHOLD_PROOF).unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x01], "valid threshold proof should pass");
+    }
+
+    #[test]
+    fn test_threshold_proof_precompile_invalid() {
+        // Garbage proof bytes should fail verification (return 0x00, not error).
+        let blinding = Scalar::from_bytes_mod_order([0x42u8; 32]);
+        let value = 100u64;
+        let threshold = 500u64;
+
+        let pc_gens = PedersenGens::default();
+        let mut v_padded = [0u8; 32];
+        v_padded[..8].copy_from_slice(&value.to_le_bytes());
+        let v_scalar = Scalar::from_bytes_mod_order(v_padded);
+        let commitment = pc_gens.commit(v_scalar, blinding).compress().to_bytes();
+
+        let fake_proof = vec![0u8; 128];
+        let mut input = Vec::new();
+        input.extend_from_slice(&commitment);
+        input.extend_from_slice(&threshold.to_le_bytes());
+        input.extend_from_slice(&(fake_proof.len() as u32).to_le_bytes());
+        input.extend_from_slice(&fake_proof);
+
+        let result =
+            precompile_threshold_proof(&Bytes::from(input), GAS_THRESHOLD_PROOF).unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x00], "invalid proof should return 0x00");
+    }
+
+    // ── Commitment Arithmetic Tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_commitment_arith_add() {
+        let gens = PedersenGens::default();
+        let r1 = Scalar::from_bytes_mod_order([0x11u8; 32]);
+        let r2 = Scalar::from_bytes_mod_order([0x22u8; 32]);
+        let c1 = gens.commit(Scalar::from(100u64), r1);
+        let c2 = gens.commit(Scalar::from(200u64), r2);
+        let expected = (c1 + c2).compress().to_bytes();
+
+        let mut input = vec![0x01u8]; // add
+        input.extend_from_slice(&c1.compress().to_bytes());
+        input.extend_from_slice(&c2.compress().to_bytes());
+
+        let result =
+            precompile_commitment_arithmetic(&Bytes::from(input), GAS_COMMITMENT_ARITH).unwrap();
+        assert_eq!(result.bytes.as_ref(), &expected);
+    }
+
+    #[test]
+    fn test_commitment_arith_sub() {
+        let gens = PedersenGens::default();
+        let r1 = Scalar::from_bytes_mod_order([0x11u8; 32]);
+        let r2 = Scalar::from_bytes_mod_order([0x22u8; 32]);
+        let c1 = gens.commit(Scalar::from(300u64), r1);
+        let c2 = gens.commit(Scalar::from(100u64), r2);
+        let expected = (c1 - c2).compress().to_bytes();
+
+        let mut input = vec![0x02u8]; // sub
+        input.extend_from_slice(&c1.compress().to_bytes());
+        input.extend_from_slice(&c2.compress().to_bytes());
+
+        let result =
+            precompile_commitment_arithmetic(&Bytes::from(input), GAS_COMMITMENT_ARITH).unwrap();
+        assert_eq!(result.bytes.as_ref(), &expected);
+    }
+
+    #[test]
+    fn test_commitment_arith_invalid_op() {
+        let gens = PedersenGens::default();
+        let r1 = Scalar::from_bytes_mod_order([0x11u8; 32]);
+        let c1 = gens.commit(Scalar::from(100u64), r1);
+
+        let mut input = vec![0x03u8]; // invalid op
+        input.extend_from_slice(&c1.compress().to_bytes());
+        input.extend_from_slice(&c1.compress().to_bytes());
+
+        let result =
+            precompile_commitment_arithmetic(&Bytes::from(input), GAS_COMMITMENT_ARITH).unwrap();
+        assert!(result.bytes.is_empty(), "invalid op should return empty");
+    }
+
+    // ── Batch Schnorr Verify Tests ───────────────────────────────────────────
+
+    fn make_schnorr_sig(
+        secret: &Scalar,
+        message: &[u8],
+    ) -> ([u8; 32], [u8; 32], [u8; 32]) {
+        use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT as G;
+
+        let pubkey = (secret * G).compress().to_bytes();
+        // Nonce k (deterministic for testing)
+        let k = {
+            let mut h = Sha256::new();
+            h.update(b"C0DL3:schnorr:nonce:");
+            h.update(secret.as_bytes());
+            h.update(message);
+            let hash: [u8; 32] = h.finalize().into();
+            Scalar::from_bytes_mod_order(hash)
+        };
+        let r_point = (k * G).compress();
+        let sig_r = r_point.to_bytes();
+
+        let e = {
+            let mut h = Sha256::new();
+            h.update(b"C0DL3:schnorr:");
+            h.update(&sig_r);
+            h.update(&pubkey);
+            h.update(message);
+            let hash: [u8; 32] = h.finalize().into();
+            Scalar::from_bytes_mod_order(hash)
+        };
+
+        let s = k + e * secret;
+        (pubkey, sig_r, s.to_bytes())
+    }
+
+    #[test]
+    fn test_batch_schnorr_single_valid() {
+        let secret = Scalar::from_bytes_mod_order([0x42u8; 32]);
+        let msg = b"hello world";
+        let (pubkey, sig_r, sig_s) = make_schnorr_sig(&secret, msg);
+
+        let mut input = Vec::new();
+        input.extend_from_slice(&1u32.to_le_bytes()); // count = 1
+        input.extend_from_slice(&pubkey);
+        input.extend_from_slice(&sig_r);
+        input.extend_from_slice(&sig_s);
+        input.extend_from_slice(&(msg.len() as u32).to_le_bytes());
+        input.extend_from_slice(msg);
+
+        let result = precompile_batch_schnorr_verify(
+            &Bytes::from(input),
+            GAS_BATCH_SCHNORR_PER_SIG * 2,
+        )
+        .unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x01], "valid signature should pass");
+    }
+
+    #[test]
+    fn test_batch_schnorr_multiple_valid() {
+        let s1 = Scalar::from_bytes_mod_order([0x42u8; 32]);
+        let s2 = Scalar::from_bytes_mod_order([0x43u8; 32]);
+        let msg1 = b"message one";
+        let msg2 = b"message two";
+
+        let (pk1, r1, ss1) = make_schnorr_sig(&s1, msg1);
+        let (pk2, r2, ss2) = make_schnorr_sig(&s2, msg2);
+
+        let mut input = Vec::new();
+        input.extend_from_slice(&2u32.to_le_bytes());
+        // sig 1
+        input.extend_from_slice(&pk1);
+        input.extend_from_slice(&r1);
+        input.extend_from_slice(&ss1);
+        input.extend_from_slice(&(msg1.len() as u32).to_le_bytes());
+        input.extend_from_slice(msg1);
+        // sig 2
+        input.extend_from_slice(&pk2);
+        input.extend_from_slice(&r2);
+        input.extend_from_slice(&ss2);
+        input.extend_from_slice(&(msg2.len() as u32).to_le_bytes());
+        input.extend_from_slice(msg2);
+
+        let result = precompile_batch_schnorr_verify(
+            &Bytes::from(input),
+            GAS_BATCH_SCHNORR_PER_SIG * 3,
+        )
+        .unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x01], "two valid sigs should pass");
+    }
+
+    #[test]
+    fn test_batch_schnorr_one_invalid() {
+        let s1 = Scalar::from_bytes_mod_order([0x42u8; 32]);
+        let s2 = Scalar::from_bytes_mod_order([0x43u8; 32]);
+        let msg1 = b"message one";
+        let msg2 = b"message two";
+
+        let (pk1, r1, ss1) = make_schnorr_sig(&s1, msg1);
+        let (pk2, r2, _ss2) = make_schnorr_sig(&s2, msg2);
+        // Corrupt second signature
+        let bad_ss2 = [0xFFu8; 32];
+
+        let mut input = Vec::new();
+        input.extend_from_slice(&2u32.to_le_bytes());
+        input.extend_from_slice(&pk1);
+        input.extend_from_slice(&r1);
+        input.extend_from_slice(&ss1);
+        input.extend_from_slice(&(msg1.len() as u32).to_le_bytes());
+        input.extend_from_slice(msg1);
+        input.extend_from_slice(&pk2);
+        input.extend_from_slice(&r2);
+        input.extend_from_slice(&bad_ss2);
+        input.extend_from_slice(&(msg2.len() as u32).to_le_bytes());
+        input.extend_from_slice(msg2);
+
+        let result = precompile_batch_schnorr_verify(
+            &Bytes::from(input),
+            GAS_BATCH_SCHNORR_PER_SIG * 3,
+        )
+        .unwrap();
+        assert_eq!(result.bytes.as_ref(), &[0x00], "one bad sig should fail batch");
     }
 }
