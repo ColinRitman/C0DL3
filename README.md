@@ -84,6 +84,47 @@ C0DL3 ships privacy-native and Ethereum-compatible precompiles, all SP1-accelera
 
 BN254 ecPairing (0x0008) enables on-chain Groth16 ZK proof verification in any Solidity contract. P-256 (0x0201) enables passkey-based wallet auth — Face ID, Touch ID, YubiKey, no seed phrases.
 
+### Sovereign Prover
+
+C0DL3 uses a **sovereign prover model** — anyone with a GPU can prove blocks and earn HEAT rewards. No centralized prover network required.
+
+**Proof flow:**
+
+```
+1. Block proposed (2s cadence) ──────────── soft-confirmed
+2. Prover polls /proof/pending, downloads block data + pre-state
+3. SP1 guest executes block (revm + privacy validation) inside zkVM
+4. Prover submits proof via /proof/submit
+5. Sequencer verifies proof (SP1 SDK / Groth16 verifier)
+6. Block hard-confirmed ─── proof batched for L2 settlement
+```
+
+**Settlement path:** `L3 batch → SP1 Groth16 proof → SP1Verifier.sol on zkSync Era → Ethereum L1`
+
+**Proof modes:**
+
+| Mode | Speed | On-chain | Use case |
+|------|-------|----------|----------|
+| `execute` | ~1s | No | Test correctness |
+| `compressed` | 30-60s | No | Internal verification |
+| `groth16` | 60-120s | Yes | Production settlement |
+| `plonk` | 60-120s | Yes | Alternative on-chain |
+
+**Two-mode verification:** `real-proofs` feature off = mock/testnet (fast iteration), on = cryptographic SP1 Groth16 verification (mainnet).
+
+**`BlockExecutionClaim` public inputs** — what the proof commits to:
+
+| Field | Size | Description |
+|-------|------|-------------|
+| `prev_state_root` | 32B | State root before block |
+| `new_state_root` | 32B | State root after block |
+| `tx_merkle_root` | 32B | Merkle root of transaction hashes |
+| `note_tree_root` | 32B | Shielded pool note tree root |
+| `nullifier_count` | 4B | Nullifiers consumed |
+| `total_gas_used` | 8B | Gas consumed |
+
+See [`prover/README.md`](prover/README.md) for operator setup — how to run a prover node, export verification keys, and earn HEAT rewards.
+
 ### SP1 zkVM
 Block proofs run on [SP1](https://github.com/succinctlabs/sp1) (RISC-V zkVM). The guest verifies all client-supplied proofs (Schnorr, Bulletproofs, Merkle membership) inside the ZK circuit — the sequencer's processing is early rejection only, trustless by design.
 
