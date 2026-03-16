@@ -1358,6 +1358,8 @@ fn execute_transaction(state: &mut RollupState, tx: &Transaction) -> Result<u64>
             balance_commitment: compute_balance_commitment(&sender_addr, 0, 0),
             balance: 0,
             nonce: 0,
+            wallet_type: aa::types::WalletType::LegacyEOA,
+            owner_pubkey: None,
         });
 
     // Verify nonce
@@ -1384,6 +1386,8 @@ fn execute_transaction(state: &mut RollupState, tx: &Transaction) -> Result<u64>
             balance_commitment: compute_balance_commitment(&recipient_addr, 0, 0),
             balance: 0,
             nonce: 0,
+            wallet_type: aa::types::WalletType::LegacyEOA,
+            owner_pubkey: None,
         });
     recipient.balance += tx.value;
     recipient.balance_commitment = compute_balance_commitment(&recipient_addr, recipient.balance, recipient.nonce);
