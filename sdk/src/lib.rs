@@ -13,10 +13,12 @@
 //
 // NO SP1 DEPENDENCY. This is pure crypto — runs on any platform.
 
+pub mod auto_shield;
 pub mod commitment_proof;
 pub mod encrypted_memo;
-pub mod shield;
 pub mod merkle;
+pub mod shield;
+pub mod stealth;
 pub mod types;
 
 pub use commitment_proof::{
