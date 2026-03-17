@@ -170,7 +170,7 @@ cargo test --lib
 
 ## Fuego Bridge
 
-C0DL3 maintains a bidirectional bridge to Fuego L1 for asset transfers. Bridge operations are privacy-preserving — amounts are shielded during cross-chain transit.
+C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Bridge operations are privacy-preserving — amounts are shielded during cross-chain transit.
 
 ---
 
