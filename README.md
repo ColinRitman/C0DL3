@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Branch](https://img.shields.io/badge/branch-zkc0dl3-blueviolet.svg)](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3)
 
-**C0DL3** is a privacy-first L3 rollup on zkSync Era. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. ZK validity proofs are generated via SP1 (RISC-V zkVM).
+**C0DL3** is a sovereign ZK privacy L3 rollup on zkSync Era. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. ZK validity proofs are generated via SP1 (RISC-V zkVM).
 
 ---
 
