@@ -27,6 +27,7 @@ mod security;
 mod validator;
 mod economics;
 mod tokens;
+mod genesis;
 mod proving;
 mod settlement;
 mod storage;
@@ -597,6 +598,8 @@ pub struct C0DL3ZkSyncNode {
     node_state: Arc<Mutex<NodeState>>,
     /// Hyperchain configuration
     hyperchain_config: HyperchainConfig,
+    /// Genesis configuration (chain identity, allocations)
+    genesis_config: genesis::GenesisConfig,
     /// Privacy manager (Bulletproofs CT, address encryption)
     privacy_manager: Option<privacy::UserPrivacyManager>,
     /// Node start time
@@ -640,7 +643,10 @@ impl C0DL3ZkSyncNode {
                 .expect("Failed to open state database")
         );
 
-        // Load persisted state or start fresh
+        // Load persisted state or initialize from genesis
+        let genesis_path = format!("{}/genesis.json", config.network.data_dir);
+        let genesis_config = genesis::GenesisConfig::load_or_default(&genesis_path);
+
         let rollup_state = match state_db.load_rollup_state() {
             Ok(Some(state)) => {
                 info!(
@@ -650,12 +656,19 @@ impl C0DL3ZkSyncNode {
                 state
             }
             Ok(None) => {
-                info!("No persisted state found — starting fresh");
-                RollupState::with_prover_config(prover_config)
+                info!("No persisted state — applying genesis (chain_id: {})", genesis_config.chain_id);
+                let state = genesis_config.apply(prover_config);
+                // Persist genesis accounts
+                for (addr, acct) in &state.accounts {
+                    if let Err(e) = state_db.put_account(addr, acct) {
+                        error!("Failed to persist genesis account {}: {}", addr, e);
+                    }
+                }
+                state
             }
             Err(e) => {
-                error!("Failed to load persisted state: {} — starting fresh", e);
-                RollupState::with_prover_config(prover_config)
+                error!("Failed to load persisted state: {} — applying genesis", e);
+                genesis_config.apply(prover_config)
             }
         };
 
@@ -694,6 +707,7 @@ impl C0DL3ZkSyncNode {
                 uptime_seconds: 0,
             })),
             hyperchain_config,
+            genesis_config,
             privacy_manager,
             start_time: Instant::now(),
         }
@@ -1425,6 +1439,12 @@ impl C0DL3ZkSyncNode {
 
             // Storage
             .route("/storage/status", get(get_storage_status))
+
+            // Faucet (testnet only)
+            .route("/faucet", post(faucet_drip))
+
+            // Ethereum JSON-RPC compatibility (POST /)
+            .route("/rpc", post(eth_json_rpc))
 
             .layer(ServiceBuilder::new().layer(cors))
             .with_state(app_state);
@@ -2468,6 +2488,202 @@ async fn get_storage_status(State(state): State<AppState>) -> Json<serde_json::V
 }
 
 // ──────────────────────────────────────────────
+// Faucet (testnet only)
+// ──────────────────────────────────────────────
+
+/// Faucet request body.
+#[derive(Debug, Deserialize)]
+struct FaucetRequest {
+    address: String,
+    #[serde(default = "default_faucet_amount")]
+    amount: u64,
+}
+
+fn default_faucet_amount() -> u64 {
+    1_000_000_000_000 // 1e12 fwei = 1000 HEAT
+}
+
+const FAUCET_ADDRESS: &str = "0xC0DL3_FAUCET_0000000000000000000001";
+const MAX_FAUCET_DRIP: u64 = 10_000_000_000_000; // 10e12 fwei = 10,000 HEAT
+
+/// POST /faucet — drip testnet HEAT to an address
+async fn faucet_drip(
+    State(state): State<AppState>,
+    Json(req): Json<FaucetRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if req.address.is_empty() || req.address.len() < 10 {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "invalid address"}))));
+    }
+    if req.amount > MAX_FAUCET_DRIP {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({
+            "error": format!("max drip is {} fwei", MAX_FAUCET_DRIP)
+        }))));
+    }
+
+    let node = state.node.lock().unwrap();
+    let state_db = node.state_db.clone();
+    let mut rollup = node.rollup_state.lock().unwrap();
+
+    // Check faucet balance
+    let faucet = match rollup.accounts.get(FAUCET_ADDRESS) {
+        Some(f) if f.balance >= req.amount => f.clone(),
+        Some(f) => return Err((StatusCode::SERVICE_UNAVAILABLE, Json(json!({
+            "error": "faucet depleted",
+            "remaining": f.balance,
+        })))),
+        None => return Err((StatusCode::SERVICE_UNAVAILABLE, Json(json!({
+            "error": "faucet account not initialized (missing genesis?)",
+        })))),
+    };
+
+    // Debit faucet
+    rollup.accounts.entry(FAUCET_ADDRESS.to_string()).and_modify(|a| {
+        a.balance -= req.amount;
+        a.balance_commitment = compute_balance_commitment(FAUCET_ADDRESS, a.balance, a.nonce);
+    });
+
+    // Credit recipient (create if needed)
+    let recipient_addr = req.address.clone();
+    let recipient = rollup.accounts
+        .entry(recipient_addr.clone())
+        .or_insert_with(|| AccountState {
+            balance_commitment: compute_balance_commitment(&recipient_addr, 0, 0),
+            balance: 0,
+            nonce: 0,
+            wallet_type: aa::types::WalletType::LegacyEOA,
+            owner_pubkey: None,
+        });
+    recipient.balance += req.amount;
+    recipient.balance_commitment = compute_balance_commitment(&recipient_addr, recipient.balance, recipient.nonce);
+
+    rollup.compute_state_root();
+
+    // Persist both accounts
+    if let Some(f) = rollup.accounts.get(FAUCET_ADDRESS) {
+        let _ = state_db.put_account(FAUCET_ADDRESS, f);
+    }
+    if let Some(r) = rollup.accounts.get(&req.address) {
+        let _ = state_db.put_account(&req.address, r);
+    }
+
+    let new_balance = rollup.accounts.get(&req.address).map(|a| a.balance).unwrap_or(0);
+    let faucet_remaining = rollup.accounts.get(FAUCET_ADDRESS).map(|a| a.balance).unwrap_or(0);
+
+    Ok(Json(json!({
+        "status": "ok",
+        "address": req.address,
+        "amount": req.amount,
+        "new_balance": new_balance,
+        "faucet_remaining": faucet_remaining,
+    })))
+}
+
+// ──────────────────────────────────────────────
+// Ethereum JSON-RPC compatibility
+// ──────────────────────────────────────────────
+
+/// Standard Ethereum JSON-RPC request envelope.
+#[derive(Debug, Deserialize)]
+struct JsonRpcRequest {
+    jsonrpc: String,
+    method: String,
+    #[serde(default)]
+    params: serde_json::Value,
+    id: serde_json::Value,
+}
+
+/// POST /rpc — Ethereum-compatible JSON-RPC endpoint
+///
+/// Supports the minimal set wallets need to connect:
+///   eth_chainId, eth_blockNumber, eth_getBalance, eth_getTransactionCount,
+///   net_version, web3_clientVersion
+async fn eth_json_rpc(
+    State(state): State<AppState>,
+    Json(req): Json<JsonRpcRequest>,
+) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let rollup = node.rollup_state.lock().unwrap();
+    let chain_id = node.genesis_config.chain_id;
+
+    let result = match req.method.as_str() {
+        "eth_chainId" => {
+            json!(format!("0x{:x}", chain_id))
+        }
+        "net_version" => {
+            json!(chain_id.to_string())
+        }
+        "web3_clientVersion" => {
+            json!("C0DL3/0.1.0/rust")
+        }
+        "eth_blockNumber" => {
+            json!(format!("0x{:x}", rollup.block_height))
+        }
+        "eth_getBalance" => {
+            let addr = req.params.as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let balance = rollup.accounts.get(addr).map(|a| a.balance).unwrap_or(0);
+            json!(format!("0x{:x}", balance))
+        }
+        "eth_getTransactionCount" => {
+            let addr = req.params.as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let nonce = rollup.accounts.get(addr).map(|a| a.nonce).unwrap_or(0);
+            json!(format!("0x{:x}", nonce))
+        }
+        "eth_getBlockByNumber" => {
+            let block_param = req.params.as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+                .unwrap_or("latest");
+
+            let height = if block_param == "latest" || block_param == "pending" {
+                rollup.block_height
+            } else {
+                u64::from_str_radix(block_param.trim_start_matches("0x"), 16).unwrap_or(0)
+            };
+
+            match rollup.blocks.get(&height) {
+                Some(block) => json!({
+                    "number": format!("0x{:x}", block.header.height),
+                    "hash": block.header.parent_hash,
+                    "parentHash": block.header.parent_hash,
+                    "timestamp": format!("0x{:x}", block.header.timestamp),
+                    "gasUsed": format!("0x{:x}", block.header.gas_used),
+                    "gasLimit": format!("0x{:x}", block.header.gas_limit),
+                    "stateRoot": block.header.state_root,
+                    "transactionsRoot": block.header.merkle_root,
+                    "transactions": block.transactions.iter().map(|tx| &tx.hash).collect::<Vec<_>>(),
+                }),
+                None => json!(null),
+            }
+        }
+        "eth_gasPrice" => {
+            json!("0x3b9aca00") // 1 gwei default
+        }
+        _ => {
+            return Json(json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "error": {
+                    "code": -32601,
+                    "message": format!("method {} not supported", req.method),
+                }
+            }));
+        }
+    };
+
+    Json(json!({
+        "jsonrpc": "2.0",
+        "id": req.id,
+        "result": result,
+    }))
+}
+
+// ──────────────────────────────────────────────
 // Account Abstraction endpoints
 // ──────────────────────────────────────────────
 
@@ -2655,7 +2871,7 @@ struct Cli {
     rpc_port: u16,
 
     // Hyperchain
-    #[arg(long, default_value = "324")]
+    #[arg(long, default_value = "789779", help = "Chain ID (0xC0D13 = C0DL3 testnet)")]
     hyperchain_id: u64,
     #[arg(long, default_value = "0x2233445566778899001122334455667788990011")]
     validator_address: String,

@@ -140,8 +140,10 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 │   ├── main.rs       HTTP server, block loop, EVM execution
 │   ├── aa/           Account Abstraction — types, Schnorr, validation, factory, paymaster
 │   ├── privacy/      Shielded pool, commitment proofs, stealth addresses
+│   ├── genesis/      Chain identity, testnet bootstrap, initial allocations
 │   ├── proving/      SP1 proof verification (real-proofs feature gate)
-│   └── settlement/   L3→L2 batch settlement pipeline
+│   ├── settlement/   L3→L2 batch settlement pipeline
+│   └── storage/      Persistent state (sled KV store)
 ├── program/          SP1 guest — zkVM block proof circuit
 │   ├── src/main.rs   Block verification phases (state, EVM, privacy, AA)
 │   ├── precompiles.rs All precompiles
@@ -203,6 +205,32 @@ C0DL3 settles to Ethereum via zkSync Era (L2). The settlement pipeline:
 
 ---
 
+## Testnet
+
+**Chain ID:** `0xC0D13` (789779)
+
+**Genesis accounts:**
+
+| Address | Balance | Role |
+|---------|---------|------|
+| `0xC0DL3_FAUCET_...01` | 1B HEAT | Testnet faucet |
+| `0xC0DL3_SEQUENCER_...01` | 100M HEAT | Sequencer operator |
+| `0xC0DL3_PAYMASTER_...01` | 50M HEAT | Default paymaster |
+
+**Testnet endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/rpc` | POST | Ethereum JSON-RPC (`eth_chainId`, `eth_blockNumber`, `eth_getBalance`, etc.) |
+| `/faucet` | POST | Drip testnet HEAT (`{"address": "0x...", "amount": 1000000000000}`) |
+| `/storage/status` | GET | Persistent state database info |
+| `/aa/create_wallet` | POST | Create AA PrivateWallet |
+| `/aa/send` | POST | Submit AA UserOperation |
+
+**Persistent state:** The node stores all state to disk (sled). Survives restarts — resumes from last block height.
+
+---
+
 ## Fuego Bridge
 
 C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Bridge operations are privacy-preserving — amounts are shielded during cross-chain transit.
@@ -225,6 +253,10 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] SP1 proving pipeline
 - [x] Settlement contracts on zkSync Era
 - [x] Data availability (via zkSync Era → Ethereum L1)
+- [x] Persistent state storage (sled)
+- [x] Genesis config + chain ID (0xC0D13)
+- [x] Testnet faucet
+- [x] Ethereum JSON-RPC compatibility
 
 ---
 
