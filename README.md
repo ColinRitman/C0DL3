@@ -153,7 +153,9 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 │   ├── Paymaster.sol       Gas payment abstraction
 │   └── COLDL3Settlement.sol  L2 settlement (SP1 proof verification)
 ├── sdk/              Wallet SDK — proof builders, auto-shield, stealth, memos
-└── prover/           Standalone SP1 prover node
+├── prover/           Standalone SP1 prover node
+├── explorer/         Minimal block explorer UI (served at /explorer)
+└── docker/           Dockerfile + docker-compose
 ```
 
 ---
@@ -170,9 +172,23 @@ cargo run --release
 
 # Run tests
 cargo test --lib
+
+# Open block explorer
+open http://localhost:9944/explorer
 ```
 
 **Dependencies:** Rust 1.75+
+
+**Docker:**
+
+```bash
+# Build and run
+docker build -t c0dl3-node -f docker/Dockerfile .
+docker run -p 9944:9944 -p 30333:30333 -v c0dl3-data:/app/data c0dl3-node
+
+# Or with docker-compose
+cd docker && docker compose up
+```
 
 ---
 
@@ -244,6 +260,7 @@ cargo run --release -- \
 | `/storage/status` | GET | Persistent state database info |
 | `/aa/create_wallet` | POST | Create AA PrivateWallet |
 | `/aa/send` | POST | Submit AA UserOperation |
+| `/explorer` | GET | Block explorer UI |
 
 **Persistent state:** The node stores all state to disk (sled). Survives restarts — resumes from last block height.
 
@@ -275,6 +292,9 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Genesis config + chain ID (0xC0D13)
 - [x] Testnet faucet
 - [x] Ethereum JSON-RPC compatibility
+- [x] Block explorer UI
+- [x] Docker image + docker-compose
+- [x] Live Era Sepolia settlement (ethers, dual-mode)
 
 ---
 

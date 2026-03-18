@@ -1556,6 +1556,9 @@ impl C0DL3ZkSyncNode {
             // Ethereum JSON-RPC compatibility (POST /)
             .route("/rpc", post(eth_json_rpc))
 
+            // Block explorer UI
+            .route("/explorer", get(explorer_ui))
+
             .layer(ServiceBuilder::new().layer(cors))
             .with_state(app_state);
 
@@ -1765,6 +1768,11 @@ struct AppState {
 
 async fn root() -> &'static str {
     "C0DL3 zkSync Era Hyperchain Node API — Settlement: zkSync Era -> Ethereum L1"
+}
+
+/// GET /explorer — minimal block explorer UI.
+async fn explorer_ui() -> axum::response::Html<&'static str> {
+    axum::response::Html(include_str!("../explorer/index.html"))
 }
 
 async fn health(State(state): State<AppState>) -> Json<serde_json::Value> {

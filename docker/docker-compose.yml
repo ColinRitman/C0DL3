@@ -1,62 +1,37 @@
 version: '3.8'
 
 services:
-  zkc0dl3-node:
-    build: .
+  c0dl3-node:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
-      - "30333:30333"  # P2P port
-      - "9944:9944"    # RPC port
+      - "9944:9944"    # RPC + Explorer
+      - "30333:30333"  # P2P
     environment:
       - RUST_LOG=info
-      - DATA_DIR=/app/data
-      - L1_RPC_URL=http://localhost:8545
-      - L2_RPC_URL=http://localhost:3050
-      - HYPERCHAIN_ID=324
-      - VALIDATOR_ADDRESS=0x2233445566778899001122334455667788990011
-      - BRIDGE_ADDRESS=0x3344556677889900112233445566778899001122
-      - L1_CONTRACT_ADDRESS=0x4455667788990011223344556677889900112233
-      - TARGET_BLOCK_TIME=30
-      - MERGE_MINING_ENABLED=true
-      - FUEGO_RPC_URL=http://localhost:8546
-      - FUEGO_WALLET_ADDRESS=0x1111111111111111111111111111111111111111
-      - AUX_POW_TAG=C0DL3-MERGE-MINING
-      - MERGE_MINING_INTERVAL=30
-      - CN_UPX2_DIFFICULTY=1000
     volumes:
-      - ./data:/app/data
+      - c0dl3-data:/app/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # Override CMD for live settlement mode:
+    # command: [
+    #   "--data-dir", "/app/data",
+    #   "--rpc-port", "9944",
+    #   "--p2p-port", "30333",
+    #   "--hyperchain-id", "789779",
+    #   "--era-rpc-url", "https://sepolia.era.zksync.dev",
+    #   "--settlement-contract", "0xYOUR_CONTRACT",
+    #   "--sequencer-key", "YOUR_PRIVATE_KEY_HEX"
+    # ]
 
-  # Optional: Add a monitoring service
+  # Optional monitoring
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    restart: unless-stopped
-
-  # Optional: Add Grafana for visualization
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
+      - ../prometheus.yml:/etc/prometheus/prometheus.yml
     restart: unless-stopped
 
 volumes:
-  grafana-storage:
+  c0dl3-data:
