@@ -99,7 +99,7 @@ C0DL3 uses a **sovereign prover model** — anyone with a GPU can prove blocks a
 6. Block hard-confirmed ─── proof batched for L2 settlement
 ```
 
-**Settlement path:** `L3 batch → SP1 Groth16 proof → SP1Verifier.sol on zkSync Era → Ethereum L1`
+**Settlement path:** `L3 batch → SP1 Groth16 proof → COLDL3Settlement.sol on zkSync Era → Ethereum L1`
 
 **Proof modes:**
 
@@ -139,11 +139,17 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 ├── src/              Host — sequencer node, RPC, block building
 │   ├── main.rs       HTTP server, block loop, EVM execution
 │   ├── aa/           Account Abstraction — types, Schnorr, validation, factory, paymaster
-│   └── privacy/      Shielded pool, commitment proofs, stealth addresses
+│   ├── privacy/      Shielded pool, commitment proofs, stealth addresses
+│   ├── proving/      SP1 proof verification (real-proofs feature gate)
+│   └── settlement/   L3→L2 batch settlement pipeline
 ├── program/          SP1 guest — zkVM block proof circuit
 │   ├── src/main.rs   Block verification phases (state, EVM, privacy, AA)
 │   ├── precompiles.rs All precompiles
 │   └── privacy.rs    ZK-side privacy verification
+├── contracts/        Reference Solidity contracts
+│   ├── PrivateWallet.sol   AA wallet (Pedersen commitments)
+│   ├── Paymaster.sol       Gas payment abstraction
+│   └── COLDL3Settlement.sol  L2 settlement (SP1 proof verification)
 ├── sdk/              Wallet SDK — proof builders, auto-shield, stealth, memos
 └── prover/           Standalone SP1 prover node
 ```
@@ -168,6 +174,35 @@ cargo test --lib
 
 ---
 
+## Settlement
+
+C0DL3 settles to Ethereum via zkSync Era (L2). The settlement pipeline:
+
+```
+1. Prover generates SP1 Groth16 proof for L3 block
+2. Sequencer verifies proof and records ProvenBlock
+3. Settlement manager batches proven blocks (configurable batch_size)
+4. Submits (publicValues, proofBytes) to COLDL3Settlement.sol on Era
+5. Contract verifies proof via SP1VerifierGateway
+6. State root committed on L2 → inherits Ethereum L1 finality
+```
+
+**Contracts:**
+
+| Contract | Chain | Purpose |
+|----------|-------|---------|
+| `COLDL3Settlement.sol` | zkSync Era (L2) | Verifies SP1 proofs, commits L3 state roots |
+| `SP1VerifierGateway` | zkSync Era (L2) | Succinct's on-chain Groth16/PLONK verifier |
+
+**RPC endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/settlement` | GET | Settlement pipeline status |
+| `/settlement/batches` | GET | List all settlement batches |
+
+---
+
 ## Fuego Bridge
 
 C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Bridge operations are privacy-preserving — amounts are shielded during cross-chain transit.
@@ -181,13 +216,15 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Client-side partial proving (commitment knowledge proofs)
 - [x] Privacy precompile suite (Schnorr, conservation, ElGamal, Ed25519)
 - [x] Ethereum-compatible precompiles (ecRecover, SHA-256, BN254, ModExp)
-- [ ] Native AA wallets (privacy-by-default balances) — **in progress**
-- [ ] Paymaster gas abstraction
-- [ ] SDK auto-shield flow
-- [ ] SP1 proving pipeline
-- [ ] Settlement contracts on zkSync Era
-- [ ] EIP-4844 DA (blob submission)
-- [ ] WebAuthn wallet auth (P-256 passkeys)
+- [x] Native AA wallets (privacy-by-default balances)
+- [x] Paymaster gas abstraction
+- [x] SDK auto-shield flow
+- [x] Guest-side AA verification (SP1 Phase 7)
+- [x] Reference Solidity contracts (PrivateWallet.sol, Paymaster.sol)
+- [x] WebAuthn wallet auth (P-256 passkeys precompile)
+- [x] SP1 proving pipeline
+- [x] Settlement contracts on zkSync Era
+- [x] Data availability (via zkSync Era → Ethereum L1)
 
 ---
 

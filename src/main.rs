@@ -28,6 +28,8 @@ mod validator;
 mod economics;
 mod tokens;
 mod proving;
+mod settlement;
+mod storage;
 #[cfg(feature = "cli-ui")]
 mod unified_cli;
 #[cfg(feature = "cli-ui")]
@@ -127,6 +129,9 @@ impl From<libp2p::kad::Event> for C0DL3Event {
 pub struct Block {
     pub header: BlockHeader,
     pub transactions: Vec<Transaction>,
+    /// AA UserOperations included in this block.
+    #[serde(default)]
+    pub user_operations: Vec<aa::types::UserOperation>,
     pub zk_proof: Option<ZkProof>,
 }
 
@@ -204,6 +209,9 @@ pub struct ProvenBlock {
     pub proposer_tip: u64,
     /// Unix timestamp of proof acceptance.
     pub proven_at: u64,
+    /// SP1 proof bytes (stored for settlement submission to L2).
+    #[serde(default)]
+    pub proof_bytes: Vec<u8>,
 }
 
 /// Block proof status for API responses.
@@ -387,6 +395,7 @@ impl RollupState {
             total_heat_reward,
             proposer_tip,
             proven_at: submission.submitted_at,
+            proof_bytes: submission.proof_bytes.clone(),
         };
 
         // Commit the proven record
@@ -574,10 +583,16 @@ pub struct C0DL3ZkSyncNode {
     validator_registry: Arc<ValidatorRegistry>,
     /// L3 rollup state (accounts, blocks, state root)
     rollup_state: Arc<Mutex<RollupState>>,
+    /// Persistent state database (sled) — write-through from RollupState
+    state_db: Arc<storage::StateDb>,
     /// Pending transaction pool
     pending_transactions: Arc<Mutex<HashMap<String, Transaction>>>,
+    /// Pending AA UserOperation pool (drained into blocks by the sequencer)
+    pending_aa_operations: Arc<Mutex<Vec<aa::types::UserOperation>>>,
     /// L1 batches submitted to zkSync Era
     l1_batches: Arc<Mutex<HashMap<u64, L1Batch>>>,
+    /// Settlement manager — batches proven blocks and submits to L2
+    settlement_manager: Arc<Mutex<settlement::SettlementManager>>,
     /// Node monitoring state
     node_state: Arc<Mutex<NodeState>>,
     /// Hyperchain configuration
@@ -618,19 +633,64 @@ impl C0DL3ZkSyncNode {
             }
         };
 
+        // Open persistent state database
+        let db_path = format!("{}/state_db", config.network.data_dir);
+        let state_db = Arc::new(
+            storage::StateDb::open(&db_path)
+                .expect("Failed to open state database")
+        );
+
+        // Load persisted state or start fresh
+        let rollup_state = match state_db.load_rollup_state() {
+            Ok(Some(state)) => {
+                info!(
+                    "Resumed from persisted state (height: {}, accounts: {})",
+                    state.block_height, state.accounts.len()
+                );
+                state
+            }
+            Ok(None) => {
+                info!("No persisted state found — starting fresh");
+                RollupState::with_prover_config(prover_config)
+            }
+            Err(e) => {
+                error!("Failed to load persisted state: {} — starting fresh", e);
+                RollupState::with_prover_config(prover_config)
+            }
+        };
+
+        // Reconstruct node_state from loaded rollup_state
+        let loaded_height = rollup_state.block_height;
+        let loaded_block_hash = rollup_state.blocks.get(&loaded_height)
+            .map(|b| {
+                // Recompute block hash
+                compute_block_hash(b)
+            })
+            .unwrap_or_else(|| "0x0000000000000000000000000000000000000000000000000000000000000000".to_string());
+
+        let era_rpc_url = config.settlement.era_rpc_url.clone();
+
         Self {
             config,
             fuego_client,
             validator_registry,
-            rollup_state: Arc::new(Mutex::new(RollupState::with_prover_config(prover_config))),
+            rollup_state: Arc::new(Mutex::new(rollup_state)),
+            state_db,
             pending_transactions: Arc::new(Mutex::new(HashMap::new())),
+            pending_aa_operations: Arc::new(Mutex::new(Vec::new())),
             l1_batches: Arc::new(Mutex::new(HashMap::new())),
+            settlement_manager: Arc::new(Mutex::new(settlement::SettlementManager::new(
+                settlement::SettlementModuleConfig {
+                    era_rpc_url,
+                    ..Default::default()
+                },
+            ))),
             node_state: Arc::new(Mutex::new(NodeState {
-                current_height: 0,
-                latest_block_hash: "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+                current_height: loaded_height,
+                latest_block_hash: loaded_block_hash,
                 connected_peers: 0,
                 pending_transactions: 0,
-                blocks_produced: 0,
+                blocks_produced: loaded_height,
                 uptime_seconds: 0,
             })),
             hyperchain_config,
@@ -694,10 +754,12 @@ impl C0DL3ZkSyncNode {
         let config = self.config.clone();
         let rollup_state = self.rollup_state.clone();
         let pending_txs = self.pending_transactions.clone();
+        let pending_aa_ops = self.pending_aa_operations.clone();
         let node_state = self.node_state.clone();
         let validator_registry = self.validator_registry.clone();
         let l1_batches = self.l1_batches.clone();
         let fuego_client = self.fuego_client.clone();
+        let state_db = self.state_db.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(config.sequencer.block_time_secs));
@@ -735,6 +797,12 @@ impl C0DL3ZkSyncNode {
                     drain_keys.iter()
                         .filter_map(|k| pending.remove(k))
                         .collect()
+                };
+
+                // Drain pending AA operations
+                let aa_ops: Vec<aa::types::UserOperation> = {
+                    let mut pending_aa = pending_aa_ops.lock().unwrap();
+                    std::mem::take(&mut *pending_aa)
                 };
 
                 // Execute transactions and update state
@@ -796,17 +864,41 @@ impl C0DL3ZkSyncNode {
                         gas_limit: 30_000_000,
                     },
                     transactions: confirmed_txs,
+                    user_operations: aa_ops,
                     zk_proof: None,
                 };
 
                 // Compute block hash
                 let block_hash = compute_block_hash(&block);
 
-                // Store block
+                // Store block (in-memory + persistent)
                 {
                     let mut state = rollup_state.lock().unwrap();
                     state.blocks.insert(next_height, block.clone());
                     state.block_height = next_height;
+
+                    // Write-through to sled: block + state root + touched accounts
+                    if let Err(e) = state_db.put_block(next_height, &block, &state.state_root) {
+                        error!("Failed to persist block {}: {}", next_height, e);
+                    }
+                    // Persist all accounts that were touched by this block's transactions
+                    let touched: Vec<(String, AccountState)> = block.transactions.iter()
+                        .flat_map(|tx| vec![tx.from.clone(), tx.to.clone()])
+                        .filter_map(|addr| {
+                            state.accounts.get(&addr).map(|a| (addr, a.clone()))
+                        })
+                        .collect();
+                    if !touched.is_empty() {
+                        if let Err(e) = state_db.put_accounts(&touched) {
+                            error!("Failed to persist accounts for block {}: {}", next_height, e);
+                        }
+                    }
+                    // Persist block economics
+                    if let Some(econ) = state.block_economics_map.get(&next_height) {
+                        if let Err(e) = state_db.put_block_economics(next_height, econ) {
+                            error!("Failed to persist block economics {}: {}", next_height, e);
+                        }
+                    }
                 }
 
                 // Update node state
@@ -861,31 +953,123 @@ impl C0DL3ZkSyncNode {
         info!("Era RPC: {}", self.config.settlement.era_rpc_url);
 
         let l1_batches = self.l1_batches.clone();
-        let era_rpc_url = self.config.settlement.era_rpc_url.clone();
-        let mut last_submitted_batch: u64 = 0;
+        let rollup_state = self.rollup_state.clone();
+        let settlement_mgr = self.settlement_manager.clone();
+        let batch_size = self.config.sequencer.batch_size as u64;
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
+            let mut last_batched_height: u64 = 0;
 
             loop {
                 interval.tick().await;
 
-                let batches = l1_batches.lock().unwrap();
-                let pending_batches: Vec<_> = batches.values()
-                    .filter(|b| b.batch_number > last_submitted_batch && b.l1_tx_hash.is_empty())
+                // Find proven blocks that haven't been batched for settlement yet
+                let rollup = rollup_state.lock().unwrap();
+                let mut batchable: Vec<u64> = rollup.proven_blocks.keys()
+                    .filter(|&&h| h > last_batched_height)
+                    .copied()
+                    .collect();
+                batchable.sort();
+                drop(rollup);
+
+                if batchable.is_empty() {
+                    continue;
+                }
+
+                // Take up to batch_size proven blocks
+                let batch_heights: Vec<u64> = batchable.into_iter()
+                    .take(batch_size as usize)
                     .collect();
 
-                for batch in pending_batches {
-                    // Phase A (local dev): log batch commitment
-                    info!("L1 batch {} ready for Era submission (state root: {})",
-                        batch.batch_number, batch.state_root);
+                if batch_heights.is_empty() {
+                    continue;
+                }
 
-                    // Phase B (Sepolia): actual Era submission
-                    // TODO: Use ethers to submit batch to zkSync Era contract
-                    // let era_provider = Provider::new(Http::from_str(&era_rpc_url)?);
-                    // ...
+                // Get the proof from the last block in the batch
+                let rollup = rollup_state.lock().unwrap();
+                let last_height = *batch_heights.last().unwrap();
+                let first_height = *batch_heights.first().unwrap();
 
-                    last_submitted_batch = batch.batch_number;
+                // Compute prev_state_root from block before batch start
+                let prev_state_root = if first_height > 1 {
+                    rollup.blocks.get(&(first_height - 1))
+                        .map(|b| {
+                            let decoded = hex::decode(b.header.state_root.trim_start_matches("0x"))
+                                .unwrap_or_else(|_| vec![0u8; 32]);
+                            let mut arr = [0u8; 32];
+                            let len = decoded.len().min(32);
+                            arr[..len].copy_from_slice(&decoded[..len]);
+                            arr
+                        })
+                        .unwrap_or([0u8; 32])
+                } else {
+                    [0u8; 32]
+                };
+
+                // Get new_state_root from last block in batch
+                let new_state_root = rollup.blocks.get(&last_height)
+                    .map(|b| {
+                        let decoded = hex::decode(b.header.state_root.trim_start_matches("0x"))
+                            .unwrap_or_else(|_| vec![0u8; 32]);
+                        let mut arr = [0u8; 32];
+                        let len = decoded.len().min(32);
+                        arr[..len].copy_from_slice(&decoded[..len]);
+                        arr
+                    })
+                    .unwrap_or([0u8; 32]);
+
+                // Get proof bytes from the proven block record
+                let proof_bytes = rollup.proven_blocks.get(&last_height)
+                    .map(|pb| pb.proof_bytes.clone())
+                    .unwrap_or_default();
+
+                // Build BlockExecutionClaim public values
+                let public_values = if let Some(block) = rollup.blocks.get(&last_height) {
+                    let tx_merkle_root = {
+                        let decoded = hex::decode(block.header.merkle_root.trim_start_matches("0x"))
+                            .unwrap_or_else(|_| vec![0u8; 32]);
+                        let mut arr = [0u8; 32];
+                        let len = decoded.len().min(32);
+                        arr[..len].copy_from_slice(&decoded[..len]);
+                        arr
+                    };
+
+                    let claim = proving::BlockExecutionClaim {
+                        block_height: last_height,
+                        prev_state_root,
+                        new_state_root,
+                        tx_merkle_root,
+                        tx_count: block.transactions.len() as u32,
+                        total_gas_used: block.header.gas_used,
+                        note_tree_root: rollup.shielded_pool.note_tree_root,
+                        nullifier_count: rollup.shielded_pool.nullifier_count() as u32,
+                    };
+                    claim.encode()
+                } else {
+                    vec![]
+                };
+                drop(rollup);
+
+                // Create settlement batch
+                let mut sm = settlement_mgr.lock().unwrap();
+                match sm.create_batch(
+                    batch_heights.clone(),
+                    proof_bytes,
+                    public_values,
+                    prev_state_root,
+                    new_state_root,
+                ) {
+                    Ok(batch_id) => {
+                        info!(
+                            "Settlement batch {} created: blocks {}-{}",
+                            batch_id, first_height, last_height,
+                        );
+                        last_batched_height = last_height;
+                    }
+                    Err(e) => {
+                        warn!("Failed to create settlement batch: {}", e);
+                    }
                 }
             }
         });
@@ -1234,6 +1418,13 @@ impl C0DL3ZkSyncNode {
             .route("/proof/block_input/{height}", get(get_block_input))
             .route("/provers", get(get_provers))
             .route("/economics", get(get_economics))
+
+            // Settlement (L3 → zkSync Era)
+            .route("/settlement", get(get_settlement_status))
+            .route("/settlement/batches", get(get_settlement_batches))
+
+            // Storage
+            .route("/storage/status", get(get_storage_status))
 
             .layer(ServiceBuilder::new().layer(cors))
             .with_state(app_state);
@@ -1881,12 +2072,24 @@ async fn submit_proof(
     Json(submission): Json<ProofSubmission>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let node = state.node.lock().unwrap();
+    let state_db = node.state_db.clone();
     let mut rollup = node.rollup_state.lock().unwrap();
     match rollup.accept_proof(submission) {
-        Ok(proven) => Ok(Json(json!({
-            "status": "accepted",
-            "proven_block": proven,
-        }))),
+        Ok(proven) => {
+            // Write-through: persist proven block + prover stats
+            if let Err(e) = state_db.put_proven_block(proven.block_height, &proven) {
+                error!("Failed to persist proven block {}: {}", proven.block_height, e);
+            }
+            if let Some(stats) = rollup.prover_registry.provers.get(&proven.prover_address) {
+                if let Err(e) = state_db.put_prover_stats(&proven.prover_address, stats) {
+                    error!("Failed to persist prover stats: {}", e);
+                }
+            }
+            Ok(Json(json!({
+                "status": "accepted",
+                "proven_block": proven,
+            })))
+        }
         Err(e) => Ok(Json(json!({
             "status": "error",
             "message": e.to_string(),
@@ -2044,6 +2247,42 @@ async fn get_block_input(
         "unshield_requests": [],
     });
 
+    // Convert AA UserOperations to guest format
+    let user_operations: Vec<serde_json::Value> = block.user_operations.iter().map(|op| {
+        // Look up sender and recipient commitments at block time
+        let sender_old_commit = rollup.accounts.get(&op.sender)
+            .map(|a| a.balance_commitment)
+            .unwrap_or_else(|| compute_balance_commitment(&op.sender, 0, 0));
+        let recipient_old_commit = rollup.accounts.get(&op.to)
+            .map(|a| a.balance_commitment)
+            .unwrap_or_else(|| compute_balance_commitment(&op.to, 0, 0));
+
+        json!({
+            "sender": op.sender,
+            "nonce": op.nonce,
+            "to": op.to,
+            "sender_old_commitment": sender_old_commit,
+            "sender_new_commitment": op.sender_new_commitment,
+            "recipient_old_commitment": recipient_old_commit,
+            "recipient_new_commitment": op.recipient_new_commitment,
+            "amount_commitment": op.amount_commitment,
+            "knowledge_proof": {
+                "commitment": op.knowledge_proof.commitment,
+                "announcement": op.knowledge_proof.announcement,
+                "response_v": op.knowledge_proof.response_v,
+                "response_r": op.knowledge_proof.response_r,
+            },
+            "auth_signature_r": op.auth_signature.r_point,
+            "auth_signature_s": op.auth_signature.s_scalar,
+            "sender_pubkey": rollup.accounts.get(&op.sender)
+                .and_then(|a| a.owner_pubkey)
+                .unwrap_or([0u8; 32]),
+            "gas_limit": op.gas_limit,
+            "gas_price": op.gas_price,
+            "paymaster": op.paymaster,
+        })
+    }).collect();
+
     let block_input = json!({
         "block_height": height,
         "prev_state_root": prev_state_root,
@@ -2053,6 +2292,7 @@ async fn get_block_input(
         "shielded": shielded,
         "block_gas_limit": block.header.gas_limit,
         "timestamp": block.header.timestamp,
+        "user_operations": user_operations,
     });
 
     // Expected claim for the prover to verify locally
@@ -2155,6 +2395,79 @@ async fn get_economics(State(state): State<AppState>) -> Json<serde_json::Value>
 }
 
 // ──────────────────────────────────────────────
+// Settlement endpoints (L3 → zkSync Era)
+// ──────────────────────────────────────────────
+
+/// GET /settlement — settlement pipeline status.
+async fn get_settlement_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let sm = node.settlement_manager.lock().unwrap();
+    let summary = sm.summary();
+    Json(json!({
+        "settlement": {
+            "path": "C0DL3 (L3) → zkSync Era (L2) → Ethereum (L1)",
+            "contract": summary.settlement_contract,
+            "era_rpc_url": summary.era_rpc_url,
+            "total_batches": summary.total_batches,
+            "pending": summary.pending,
+            "submitted": summary.submitted,
+            "settled": summary.settled,
+            "failed": summary.failed,
+            "last_settled_height": summary.last_settled_height,
+        }
+    }))
+}
+
+/// GET /settlement/batches — list all settlement batches.
+async fn get_settlement_batches(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let sm = node.settlement_manager.lock().unwrap();
+
+    let pending = sm.batches_by_status(settlement::SettlementStatus::Pending);
+    let submitted = sm.batches_by_status(settlement::SettlementStatus::Submitted);
+    let settled = sm.batches_by_status(settlement::SettlementStatus::Settled);
+
+    let format_batch = |b: &&settlement::SettlementBatch| json!({
+        "batch_id": b.batch_id,
+        "block_heights": b.block_heights,
+        "status": b.status.to_string(),
+        "proof_size_bytes": b.proof_bytes.len(),
+        "l2_tx_hash": b.l2_tx_hash,
+        "created_at": b.created_at,
+        "settled_at": b.settled_at,
+    });
+
+    Json(json!({
+        "pending": pending.iter().map(format_batch).collect::<Vec<_>>(),
+        "submitted": submitted.iter().map(format_batch).collect::<Vec<_>>(),
+        "settled": settled.iter().map(format_batch).collect::<Vec<_>>(),
+    }))
+}
+
+// ──────────────────────────────────────────────
+// Storage status endpoint
+// ──────────────────────────────────────────────
+
+/// GET /storage/status — persistent state database info
+async fn get_storage_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let rollup = node.rollup_state.lock().unwrap();
+    let db_size = node.state_db.size_on_disk();
+
+    Json(json!({
+        "engine": "sled",
+        "size_bytes": db_size,
+        "size_mb": format!("{:.2}", db_size as f64 / 1_048_576.0),
+        "persisted_height": rollup.block_height,
+        "persisted_accounts": rollup.accounts.len(),
+        "persisted_blocks": rollup.blocks.len(),
+        "persisted_proven": rollup.proven_blocks.len(),
+        "shielded_notes": rollup.shielded_pool.notes.len(),
+        "shielded_nullifiers": rollup.shielded_pool.nullifier_set.len(),
+    }))
+}
+
+// ──────────────────────────────────────────────
 // Account Abstraction endpoints
 // ──────────────────────────────────────────────
 
@@ -2195,10 +2508,16 @@ async fn create_aa_wallet(
     let account = aa::wallet_factory::create_wallet_account(&address, pubkey_bytes);
 
     let node = state.node.lock().unwrap();
+    let state_db = node.state_db.clone();
     let mut rollup = node.rollup_state.lock().unwrap();
     let balance_commitment = account.balance_commitment;
-    rollup.accounts.insert(address.clone(), account);
+    rollup.accounts.insert(address.clone(), account.clone());
     rollup.compute_state_root();
+
+    // Persist new account
+    if let Err(e) = state_db.put_account(&address, &account) {
+        error!("Failed to persist new wallet {}: {}", address, e);
+    }
 
     Ok(Json(json!({
         "address": address,
@@ -2213,6 +2532,7 @@ async fn aa_send(
     Json(op): Json<aa::types::UserOperation>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let node = state.node.lock().unwrap();
+    let state_db = node.state_db.clone();
     let mut rollup = node.rollup_state.lock().unwrap();
 
     // Verify sender exists and is a PrivateWallet
@@ -2277,10 +2597,28 @@ async fn aa_send(
 
     rollup.compute_state_root();
 
+    let sender_new = op.sender_new_commitment;
+    let recipient_new = op.recipient_new_commitment;
+
+    // Persist updated sender + recipient accounts
+    if let Some(s) = rollup.accounts.get(&op.sender) {
+        if let Err(e) = state_db.put_account(&op.sender, s) {
+            error!("Failed to persist sender {}: {}", op.sender, e);
+        }
+    }
+    if let Some(r) = rollup.accounts.get(&op.to) {
+        if let Err(e) = state_db.put_account(&op.to, r) {
+            error!("Failed to persist recipient {}: {}", op.to, e);
+        }
+    }
+
+    // Queue op for inclusion in the next block (guest will re-verify inside SP1)
+    node.pending_aa_operations.lock().unwrap().push(op);
+
     Ok(Json(json!({
         "status": "accepted",
-        "sender_new_commitment": hex::encode(op.sender_new_commitment),
-        "recipient_new_commitment": hex::encode(op.recipient_new_commitment),
+        "sender_new_commitment": hex::encode(sender_new),
+        "recipient_new_commitment": hex::encode(recipient_new),
     })))
 }
 

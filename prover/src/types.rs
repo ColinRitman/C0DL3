@@ -7,9 +7,9 @@
 //   4. Guest → Verifier: BlockExecutionClaim (public outputs, 152 bytes)
 //
 // IMPORTANT: Any changes here must be mirrored in:
-//   - program/src/main.rs (GuestBlockInput, GuestTransaction, BlockExecutionClaim)
+//   - program/src/main.rs (GuestBlockInput, GuestTransaction, GuestUserOperation, BlockExecutionClaim)
 //   - program/src/state.rs (AccountWitness)
-//   - program/src/privacy.rs (ShieldedBlockData, GuestSpendProof)
+//   - program/src/privacy.rs (ShieldedBlockData, GuestSpendProof, CommitmentKnowledgeProof)
 //   - src/proving/mod.rs (BlockExecutionClaim)
 
 use serde::{Deserialize, Serialize};
@@ -67,11 +67,16 @@ pub struct GuestTransaction {
 }
 
 /// Pre-state account data — private witness fed to the guest.
+///
+/// PRIVACY: For accounts not involved in EVM transactions,
+/// `precomputed_commitment` can be provided instead of the plaintext balance.
+/// This prevents the prover from learning balances of shielded-only accounts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountWitness {
     /// Address as string (e.g. "0x1234...") — must match host HashMap key format.
     pub address: String,
     /// Plaintext balance in fwei.
+    /// For commitment-only witnesses, this is 0 (unused — commitment is authoritative).
     pub balance: u64,
     /// Account nonce.
     pub nonce: u64,
@@ -79,6 +84,16 @@ pub struct AccountWitness {
     pub code: Vec<u8>,
     /// Storage slots: (key_bytes_32, value_bytes_32).
     pub storage: Vec<([u8; 32], [u8; 32])>,
+    /// Pre-computed balance commitment. When Some, the guest uses this directly
+    /// instead of computing from plaintext balance.
+    #[serde(default)]
+    pub precomputed_commitment: Option<[u8; 32]>,
+    /// 0 = LegacyEOA, 1 = PrivateWallet
+    #[serde(default)]
+    pub wallet_type: u8,
+    /// Owner public key for PrivateWallet accounts.
+    #[serde(default)]
+    pub owner_pubkey: Option<[u8; 32]>,
 }
 
 /// Spend proof — proves valid consumption of shielded notes.
@@ -92,6 +107,35 @@ pub struct GuestSpendProof {
     pub range_proofs: Vec<Vec<u8>>,
 }
 
+/// Schnorr-style proof of knowledge for a Pedersen commitment.
+/// Proves: "I know (v, r) such that C = v*G + r*H" without revealing v or r.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitmentKnowledgeProof {
+    pub commitment: [u8; 32],
+    pub announcement: [u8; 32],
+    pub response_v: [u8; 32],
+    pub response_r: [u8; 32],
+}
+
+/// Shield request — client-side proven deposit into shielded pool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestShieldRequest {
+    pub note_commitment: [u8; 32],
+    pub value_commitment: [u8; 32],
+    pub recipient_pubkey: [u8; 32],
+    pub knowledge_proof: CommitmentKnowledgeProof,
+}
+
+/// Unshield request — client-side proven withdrawal from shielded pool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestUnshieldRequest {
+    pub nullifier: [u8; 32],
+    pub note_commitment: [u8; 32],
+    pub value_commitment: [u8; 32],
+    pub knowledge_proof: CommitmentKnowledgeProof,
+    pub merkle_proof: Vec<([u8; 32], bool)>,
+}
+
 /// All shielded pool data for a single block.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShieldedBlockData {
@@ -100,6 +144,12 @@ pub struct ShieldedBlockData {
     pub nullifiers: Vec<[u8; 32]>,
     pub prev_nullifiers: Vec<[u8; 32]>,
     pub prev_note_commitments: Vec<[u8; 32]>,
+    /// Client-side proven shield requests (deposits into shielded pool).
+    #[serde(default)]
+    pub shield_requests: Vec<GuestShieldRequest>,
+    /// Client-side proven unshield requests (withdrawals from shielded pool).
+    #[serde(default)]
+    pub unshield_requests: Vec<GuestUnshieldRequest>,
 }
 
 impl Default for ShieldedBlockData {
@@ -110,8 +160,33 @@ impl Default for ShieldedBlockData {
             nullifiers: vec![],
             prev_nullifiers: vec![],
             prev_note_commitments: vec![],
+            shield_requests: vec![],
+            unshield_requests: vec![],
         }
     }
+}
+
+/// Guest-side UserOperation for AA wallet verification.
+///
+/// Minimal representation for in-circuit verification of AA transfers.
+/// The guest verifies: Schnorr auth, conservation, and knowledge proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestUserOperation {
+    pub sender: String,
+    pub nonce: u64,
+    pub to: String,
+    pub sender_old_commitment: [u8; 32],
+    pub sender_new_commitment: [u8; 32],
+    pub recipient_old_commitment: [u8; 32],
+    pub recipient_new_commitment: [u8; 32],
+    pub amount_commitment: [u8; 32],
+    pub knowledge_proof: CommitmentKnowledgeProof,
+    pub auth_signature_r: [u8; 32],
+    pub auth_signature_s: [u8; 32],
+    pub sender_pubkey: [u8; 32],
+    pub gas_limit: u64,
+    pub gas_price: u64,
+    pub paymaster: Option<String>,
 }
 
 /// Block input data — everything the SP1 guest needs to prove a block.
@@ -125,6 +200,9 @@ pub struct GuestBlockInput {
     pub shielded: ShieldedBlockData,
     pub block_gas_limit: u64,
     pub timestamp: u64,
+    /// AA UserOperations for this block.
+    #[serde(default)]
+    pub user_operations: Vec<GuestUserOperation>,
 }
 
 // ── Node RPC Response Types ───────────────────────────────────────────────────

@@ -73,6 +73,9 @@ thiserror = "1.0"
 rayon = "1.8"
 num_cpus = "1.16"
 
+# Persistent storage (embedded KV store — pure Rust, no C++ deps)
+sled = "0.34"
+
 # XFG Winterfell STARK Integration
 xfg-stark = { git = "https://github.com/ColinRitman/xfgwin", branch = "complete-xfgwin-system" }
 

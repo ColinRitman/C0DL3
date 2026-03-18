@@ -1,0 +1,2 @@
+# Guest ELF binary is built here by: cargo prove build
+# See scripts/build-prover.sh for the full build pipeline.

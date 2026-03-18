@@ -71,7 +71,7 @@ pub struct SpendProof {
 }
 
 /// The shielded pool: tracks all notes and spent nullifiers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShieldedPool {
     /// All notes (Merkle leaves), append-only
     pub notes: Vec<ShieldedNote>,
