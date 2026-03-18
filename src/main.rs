@@ -532,6 +532,10 @@ pub struct SettlementConfig {
     pub era_rpc_url: String,
     /// Ethereum L1 RPC URL (finality monitoring)
     pub eth_l1_rpc_url: String,
+    /// COLDL3Settlement contract address on zkSync Era (hex).
+    pub settlement_contract: Option<String>,
+    /// Sequencer private key for signing settlement txs (hex, no 0x prefix).
+    pub sequencer_key: Option<String>,
 }
 
 impl Default for NetworkConfig {
@@ -681,7 +685,12 @@ impl C0DL3ZkSyncNode {
             })
             .unwrap_or_else(|| "0x0000000000000000000000000000000000000000000000000000000000000000".to_string());
 
-        let era_rpc_url = config.settlement.era_rpc_url.clone();
+        let settlement_module_config = settlement::SettlementModuleConfig {
+            era_rpc_url: config.settlement.era_rpc_url.clone(),
+            settlement_contract: config.settlement.settlement_contract.clone().unwrap_or_default(),
+            sequencer_key: config.settlement.sequencer_key.clone(),
+            ..Default::default()
+        };
 
         Self {
             config,
@@ -693,10 +702,7 @@ impl C0DL3ZkSyncNode {
             pending_aa_operations: Arc::new(Mutex::new(Vec::new())),
             l1_batches: Arc::new(Mutex::new(HashMap::new())),
             settlement_manager: Arc::new(Mutex::new(settlement::SettlementManager::new(
-                settlement::SettlementModuleConfig {
-                    era_rpc_url,
-                    ..Default::default()
-                },
+                settlement_module_config,
             ))),
             node_state: Arc::new(Mutex::new(NodeState {
                 current_height: loaded_height,
@@ -966,9 +972,9 @@ impl C0DL3ZkSyncNode {
         info!("Starting L1 batch submitter (settlement: zkSync Era)");
         info!("Era RPC: {}", self.config.settlement.era_rpc_url);
 
-        let l1_batches = self.l1_batches.clone();
         let rollup_state = self.rollup_state.clone();
         let settlement_mgr = self.settlement_manager.clone();
+        let state_db = self.state_db.clone();
         let batch_size = self.config.sequencer.batch_size as u64;
 
         tokio::spawn(async move {
@@ -978,7 +984,103 @@ impl C0DL3ZkSyncNode {
             loop {
                 interval.tick().await;
 
-                // Find proven blocks that haven't been batched for settlement yet
+                // ── Phase 1: Poll confirmation for submitted batches ────────
+                let (submitted_ids, is_live, era_rpc_url) = {
+                    let sm = settlement_mgr.lock().unwrap();
+                    (
+                        sm.submitted_batch_ids(),
+                        sm.is_live(),
+                        sm.summary().era_rpc_url,
+                    )
+                };
+                for bid in submitted_ids {
+                    if is_live {
+                        // Live mode: get tx hash, drop lock, poll Era async
+                        let tx_hash = {
+                            let sm = settlement_mgr.lock().unwrap();
+                            sm.get_batch(bid).and_then(|b| b.l2_tx_hash.clone())
+                        };
+                        if let Some(tx_hash) = tx_hash {
+                            match settlement::poll_receipt_async(&era_rpc_url, &tx_hash).await {
+                                Ok(Some(true)) => {
+                                    let mut sm = settlement_mgr.lock().unwrap();
+                                    if let Err(e) = sm.confirm_batch(bid) {
+                                        warn!("Failed to confirm batch {}: {}", bid, e);
+                                    } else {
+                                        info!("Settlement batch {} confirmed on Era", bid);
+                                        if let Some(b) = sm.get_batch(bid) {
+                                            let _ = state_db.put_settlement_batch(b);
+                                        }
+                                    }
+                                }
+                                Ok(Some(false)) => {
+                                    let mut sm = settlement_mgr.lock().unwrap();
+                                    let _ = sm.mark_failed(bid);
+                                    error!("Settlement batch {} REVERTED on Era", bid);
+                                }
+                                _ => {} // Still pending or error, try next tick
+                            }
+                        }
+                    } else {
+                        // Mock mode: should already be confirmed via submit_and_confirm_mock
+                        // but handle edge case where it's still Submitted
+                        let mut sm = settlement_mgr.lock().unwrap();
+                        if let Err(e) = sm.confirm_batch(bid) {
+                            debug!("Mock confirm batch {}: {}", bid, e);
+                        } else if let Some(b) = sm.get_batch(bid) {
+                            let _ = state_db.put_settlement_batch(b);
+                        }
+                    }
+                }
+
+                // ── Phase 2: Submit pending batches ─────────────────────────
+                let pending_ids = {
+                    let sm = settlement_mgr.lock().unwrap();
+                    sm.pending_batch_ids()
+                };
+                for bid in pending_ids {
+                    if is_live {
+                        // Live mode: extract data, drop lock, submit async
+                        let sub_data = {
+                            let sm = settlement_mgr.lock().unwrap();
+                            sm.live_submission_data(bid).ok()
+                        };
+                        if let Some(data) = sub_data {
+                            match settlement::submit_live_async(&data).await {
+                                Ok(tx_hash) => {
+                                    let mut sm = settlement_mgr.lock().unwrap();
+                                    if let Err(e) = sm.mark_submitted(bid, tx_hash.clone()) {
+                                        error!("Failed to mark batch {} submitted: {}", bid, e);
+                                    } else {
+                                        info!("Settlement batch {} submitted to Era: {}", bid, tx_hash);
+                                        if let Some(b) = sm.get_batch(bid) {
+                                            let _ = state_db.put_settlement_batch(b);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to submit batch {} to Era: {}", bid, e);
+                                    let mut sm = settlement_mgr.lock().unwrap();
+                                    let _ = sm.mark_failed(bid);
+                                }
+                            }
+                        }
+                    } else {
+                        // Mock mode: sync submit + auto-confirm
+                        let mut sm = settlement_mgr.lock().unwrap();
+                        match sm.submit_and_confirm_mock(bid) {
+                            Ok(tx_hash) => {
+                                info!("Settlement batch {} settled [MOCK]: {}", bid, tx_hash);
+                                if let Some(b) = sm.get_batch(bid) {
+                                    let _ = state_db.put_settlement_batch(b);
+                                }
+                            }
+                            Err(e) => warn!("Mock settlement batch {} failed: {}", bid, e),
+                        }
+                    }
+                }
+
+                // ── Phase 3: Create new batches from proven blocks ──────────
                 let rollup = rollup_state.lock().unwrap();
                 let mut batchable: Vec<u64> = rollup.proven_blocks.keys()
                     .filter(|&&h| h > last_batched_height)
@@ -1080,6 +1182,14 @@ impl C0DL3ZkSyncNode {
                             batch_id, first_height, last_height,
                         );
                         last_batched_height = last_height;
+
+                        // Persist new batch
+                        if let Some(batch) = sm.batches_by_status(settlement::SettlementStatus::Pending)
+                            .iter().find(|b| b.batch_id == batch_id) {
+                            if let Err(e) = state_db.put_settlement_batch(batch) {
+                                error!("Failed to persist settlement batch {}: {}", batch_id, e);
+                            }
+                        }
                     }
                     Err(e) => {
                         warn!("Failed to create settlement batch: {}", e);
@@ -2426,6 +2536,7 @@ async fn get_settlement_status(State(state): State<AppState>) -> Json<serde_json
     Json(json!({
         "settlement": {
             "path": "C0DL3 (L3) → zkSync Era (L2) → Ethereum (L1)",
+            "mode": summary.mode,
             "contract": summary.settlement_contract,
             "era_rpc_url": summary.era_rpc_url,
             "total_batches": summary.total_batches,
@@ -2890,6 +3001,12 @@ struct Cli {
     #[arg(long, default_value = "300", help = "Max seconds before batch submission")]
     batch_timeout: u64,
 
+    // Settlement (Era contract + signing key)
+    #[arg(long, help = "COLDL3Settlement contract address on zkSync Era (hex, e.g. 0x...)")]
+    settlement_contract: Option<String>,
+    #[arg(long, help = "Sequencer private key for signing settlement txs (hex, no 0x prefix). Enables live settlement mode")]
+    sequencer_key: Option<String>,
+
     // Proof verification (SP1 sovereign prover)
     #[arg(long, help = "Path to SP1 verifying key file (required for proof verification)")]
     prover_vkey: Option<String>,
@@ -2935,6 +3052,8 @@ fn create_node_config(cli: &Cli) -> NodeConfig {
         settlement: SettlementConfig {
             era_rpc_url: cli.era_rpc_url.clone(),
             eth_l1_rpc_url: cli.eth_rpc_url.clone(),
+            settlement_contract: cli.settlement_contract.clone(),
+            sequencer_key: cli.sequencer_key.clone(),
         },
     }
 }
@@ -2959,8 +3078,13 @@ async fn main() -> Result<()> {
     info!("Security score: {}%", metrics.security_score);
 
     info!("C0DL3 zkSync Era Hyperchain Node starting...");
-    info!("Settlement: C0DL3 -> zkSync Era ({}) -> Ethereum L1 ({})",
-        config.settlement.era_rpc_url, config.settlement.eth_l1_rpc_url);
+    let settlement_mode = if config.settlement.sequencer_key.is_some()
+        && config.settlement.settlement_contract.is_some() { "LIVE" } else { "MOCK" };
+    info!("Settlement [{}]: C0DL3 -> zkSync Era ({}) -> Ethereum L1 ({})",
+        settlement_mode, config.settlement.era_rpc_url, config.settlement.eth_l1_rpc_url);
+    if let Some(ref contract) = config.settlement.settlement_contract {
+        info!("Settlement contract: {}", contract);
+    }
     info!("Fuego (proof verification): {}", config.fuego.rpc_url);
     info!("P2P port: {}, RPC port: {}", cli.p2p_port, cli.rpc_port);
     info!("Hyperchain ID: {}", cli.hyperchain_id);

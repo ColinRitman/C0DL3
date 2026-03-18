@@ -196,11 +196,29 @@ C0DL3 settles to Ethereum via zkSync Era (L2). The settlement pipeline:
 | `COLDL3Settlement.sol` | zkSync Era (L2) | Verifies SP1 proofs, commits L3 state roots |
 | `SP1VerifierGateway` | zkSync Era (L2) | Succinct's on-chain Groth16/PLONK verifier |
 
+**Modes:**
+
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| Mock | No `--sequencer-key` or `--settlement-contract` | Synthetic tx hashes, auto-confirms (testnet dev) |
+| Live | Both flags set | Signs real txs via ethers, polls Era for receipts |
+
+```bash
+# Mock mode (default — no Era deployment needed)
+cargo run --release
+
+# Live mode (requires deployed COLDL3Settlement.sol + funded sequencer)
+cargo run --release -- \
+  --era-rpc-url https://sepolia.era.zksync.dev \
+  --settlement-contract 0xYOUR_CONTRACT \
+  --sequencer-key YOUR_PRIVATE_KEY_HEX
+```
+
 **RPC endpoints:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/settlement` | GET | Settlement pipeline status |
+| `/settlement` | GET | Settlement pipeline status (mode, batch counts) |
 | `/settlement/batches` | GET | List all settlement batches |
 
 ---
