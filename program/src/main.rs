@@ -53,16 +53,18 @@ pub struct BlockExecutionClaim {
     pub total_gas_used: u64,
     pub note_tree_root: [u8; 32],
     pub nullifier_count: u32,
+    /// Bridge withdrawal tree root — committed so Era-side bridge can verify proofs.
+    pub withdrawal_tree_root: [u8; 32],
 }
 
 impl BlockExecutionClaim {
     /// Encode as deterministic bytes for SP1 public values commitment.
     /// Layout: block_height(8) || prev_state_root(32) || new_state_root(32)
     ///         || tx_merkle_root(32) || tx_count(4) || total_gas_used(8)
-    ///         || note_tree_root(32) || nullifier_count(4)
-    /// Total: 152 bytes
+    ///         || note_tree_root(32) || nullifier_count(4) || withdrawal_tree_root(32)
+    /// Total: 184 bytes
     pub fn encode(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(152);
+        let mut buf = Vec::with_capacity(184);
         buf.extend_from_slice(&self.block_height.to_le_bytes());
         buf.extend_from_slice(&self.prev_state_root);
         buf.extend_from_slice(&self.new_state_root);
@@ -71,6 +73,7 @@ impl BlockExecutionClaim {
         buf.extend_from_slice(&self.total_gas_used.to_le_bytes());
         buf.extend_from_slice(&self.note_tree_root);
         buf.extend_from_slice(&self.nullifier_count.to_le_bytes());
+        buf.extend_from_slice(&self.withdrawal_tree_root);
         buf
     }
 }
@@ -142,6 +145,9 @@ pub struct GuestBlockInput {
     /// AA UserOperations for this block.
     #[serde(default)]
     pub user_operations: Vec<GuestUserOperation>,
+    /// Bridge withdrawal tree root (from the bridge manager on the host).
+    #[serde(default)]
+    pub withdrawal_tree_root: [u8; 32],
 }
 
 // ── Main Entry Point ────────────────────────────────────────────────────────
@@ -305,13 +311,14 @@ pub fn main() {
         total_gas_used,
         note_tree_root,
         nullifier_count,
+        withdrawal_tree_root: input.withdrawal_tree_root,
     };
 
     let encoded = claim.encode();
     assert_eq!(
         encoded.len(),
-        152,
-        "BlockExecutionClaim encoding must be exactly 152 bytes"
+        184,
+        "BlockExecutionClaim encoding must be exactly 184 bytes"
     );
 
     // Commit to SP1's public values — this is what the verifier checks against

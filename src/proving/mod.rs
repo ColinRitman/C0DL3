@@ -53,16 +53,19 @@ pub struct BlockExecutionClaim {
     pub note_tree_root: [u8; 32],
     /// Number of nullifiers consumed in this block.
     pub nullifier_count: u32,
+    /// Bridge withdrawal tree root after this block.
+    /// Committed in the proof so Era-side bridge can verify withdrawal Merkle proofs.
+    pub withdrawal_tree_root: [u8; 32],
 }
 
 impl BlockExecutionClaim {
     /// Encode as deterministic bytes for SP1 public values commitment.
     /// Layout: block_height(8) || prev_state_root(32) || new_state_root(32)
     ///         || tx_merkle_root(32) || tx_count(4) || total_gas_used(8)
-    ///         || note_tree_root(32) || nullifier_count(4)
-    /// Total: 152 bytes
+    ///         || note_tree_root(32) || nullifier_count(4) || withdrawal_tree_root(32)
+    /// Total: 184 bytes
     pub fn encode(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(152);
+        let mut buf = Vec::with_capacity(184);
         buf.extend_from_slice(&self.block_height.to_le_bytes());
         buf.extend_from_slice(&self.prev_state_root);
         buf.extend_from_slice(&self.new_state_root);
@@ -71,14 +74,15 @@ impl BlockExecutionClaim {
         buf.extend_from_slice(&self.total_gas_used.to_le_bytes());
         buf.extend_from_slice(&self.note_tree_root);
         buf.extend_from_slice(&self.nullifier_count.to_le_bytes());
+        buf.extend_from_slice(&self.withdrawal_tree_root);
         buf
     }
 
     /// Decode from bytes.
     pub fn decode(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 152 {
+        if bytes.len() < 184 {
             return Err(anyhow!(
-                "BlockExecutionClaim: expected 152 bytes, got {}",
+                "BlockExecutionClaim: expected 184 bytes, got {}",
                 bytes.len()
             ));
         }
@@ -90,6 +94,7 @@ impl BlockExecutionClaim {
         let total_gas_used = u64::from_le_bytes(bytes[108..116].try_into().unwrap());
         let note_tree_root: [u8; 32] = bytes[116..148].try_into().unwrap();
         let nullifier_count = u32::from_le_bytes(bytes[148..152].try_into().unwrap());
+        let withdrawal_tree_root: [u8; 32] = bytes[152..184].try_into().unwrap();
 
         Ok(Self {
             block_height,
@@ -100,6 +105,7 @@ impl BlockExecutionClaim {
             total_gas_used,
             note_tree_root,
             nullifier_count,
+            withdrawal_tree_root,
         })
     }
 
@@ -262,9 +268,10 @@ mod tests {
             total_gas_used: 210_000,
             note_tree_root: [4u8; 32],
             nullifier_count: 5,
+            withdrawal_tree_root: [5u8; 32],
         };
         let encoded = claim.encode();
-        assert_eq!(encoded.len(), 152);
+        assert_eq!(encoded.len(), 184);
 
         let decoded = BlockExecutionClaim::decode(&encoded).unwrap();
         assert_eq!(decoded, claim);
@@ -287,6 +294,7 @@ mod tests {
             total_gas_used: 63_000,
             note_tree_root: [0xCDu8; 32],
             nullifier_count: 2,
+            withdrawal_tree_root: [0xEFu8; 32],
         };
         let d1 = claim.binding_digest();
         let d2 = claim.binding_digest();
@@ -308,6 +316,7 @@ mod tests {
             total_gas_used: 0,
             note_tree_root: [0u8; 32],
             nullifier_count: 0,
+            withdrawal_tree_root: [0u8; 32],
         };
         let result = verify_execution_proof(b"garbage", &claim, &[]);
         if cfg!(feature = "real-proofs") {

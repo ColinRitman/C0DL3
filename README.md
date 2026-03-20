@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Branch](https://img.shields.io/badge/branch-zkc0dl3-blueviolet.svg)](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3)
 
-**C0DL3** is a sovereign ZK privacy L3 rollup on zkSync Era. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. ZK validity proofs are generated via SP1 (RISC-V zkVM).
+**C0DL3** is a sovereign ZK darkpool L3 on zkSync Era — the privacy layer for the zkSync ecosystem. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, CD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
 
 ---
 
@@ -262,7 +262,8 @@ cargo run --release -- \
 | `/storage/status` | GET | Persistent state database info |
 | `/aa/create_wallet` | POST | Create AA PrivateWallet |
 | `/aa/send` | POST | Submit AA UserOperation |
-| `/bridge/status` | GET | Bridge pipeline status |
+| `/bridge/status` | GET | Bridge pipeline status (deposits, withdrawals, tree root) |
+| `/bridge/pools` | GET | Darkpool anonymity set health per token/tier |
 | `/bridge/withdraw` | POST | Request withdrawal from C0DL3 to Era |
 | `/bridge/withdrawal_proof/{pos}` | GET | Merkle proof for claiming on Era |
 | `/explorer` | GET | Block explorer UI |
@@ -271,35 +272,67 @@ cargo run --release -- \
 
 ---
 
-## Canonical Bridge (Era ↔ C0DL3)
+## Darkpool Bridge (Era ↔ C0DL3)
 
-Privacy-preserving canonical bridge secured by SP1 proofs. No multisig, no oracle.
+Privacy-preserving canonical bridge — the privacy boundary between public DeFi and the C0DL3 darkpool. Fixed-denomination pools prevent amount-based correlation. Inside C0DL3, amounts are arbitrary (Pedersen commitments). No multisig, no oracle — security = SP1 proofs.
 
 **Deposit (Era → C0DL3):**
 ```
-1. User deposits ETH/tokens to C0DL3Bridge.sol on Era (fixed denomination pool)
+1. User deposits token into a fixed-denomination pool on C0DL3Bridge.sol (Era)
 2. Sequencer observes Deposit event on Era
 3. L3 mints shielded Pedersen commitment to user's stealth address
-4. Privacy begins — amount hidden inside C0DL3
+4. Privacy begins — all activity inside C0DL3 is hidden
 ```
 
 **Withdrawal (C0DL3 → Era):**
 ```
 1. User proves ownership of commitment on L3 (spends nullifier)
 2. L3 adds withdrawal leaf to withdrawal Merkle tree
-3. Withdrawal tree root committed in state → proven by SP1
-4. After settlement, user claims on Era with Merkle proof
+3. Withdrawal tree root committed in SP1 proof (BlockExecutionClaim)
+4. After settlement + delay (1-4h), user claims on Era with Merkle proof
 ```
 
+**Launch tokens (4 tokens × 3 denominations = 12 pools):**
+
+| Token | Small | Medium | Large | Role |
+|-------|-------|--------|-------|------|
+| HEAT | 10,000 | 100,000 | 1,000,000 | Native gas token |
+| ZK | 100 | 1,000 | 10,000 | Era native — privacy for ZK holders |
+| CD | 1,000 | 10,000 | 100,000 | COLDAO governance |
+| ETH | 0.1 | 1 | 10 | Bluechip base asset |
+
+**Why 3 denominations per token:**
+- Expected anonymity = N/K (N=total deposits, K=tiers) — 3 tiers leak only 1.58 bits about amount
+- Geometric 10x spacing covers 3 orders of magnitude (retail through whale)
+- Each additional tier dilutes anonymity by 1/(K+1) — 4th tier costs 25% for marginal efficiency gain
+- Minimum anonymity set threshold: 50 deposits per pool before meaningful privacy
+
+**Per-token denomination registry:**
+- Configurable via governance (sequencer can `addToken()` / `addDenomination()`)
+- Maximum 5 tiers per token (prevents over-fragmentation)
+- On-chain anonymity set counters via `getPoolHealth()` — users verify pool safety before depositing
+- New tokens added only when existing pools have healthy anonymity sets
+
 **Privacy features:**
-- Fixed denomination pools (0.1, 1, 10, 100 ETH) — prevents amount correlation
+- Fixed denomination pools — prevents amount-based deposit/withdrawal correlation
 - Withdrawal amounts need not match deposit amounts
 - No on-chain link between deposit address and withdrawal address
-- Time-delayed withdrawals (minimum 1 hour after settlement)
+- Time-delayed withdrawals (1-4 hour window for timing decorrelation)
+- State root history — supports withdrawal proofs against historical settled roots
+- SDK auto-splits deposits (e.g., 7 ETH → 7×1 ETH)
+
+**Bridge endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/bridge/status` | GET | Bridge pipeline status (deposits, withdrawals, tree root) |
+| `/bridge/pools` | GET | Darkpool anonymity set health for all tokens and tiers |
+| `/bridge/withdraw` | POST | Request withdrawal from C0DL3 to Era |
+| `/bridge/withdrawal_proof/{pos}` | GET | Merkle proof for claiming on Era |
 
 | Contract | Chain | Purpose |
 |----------|-------|---------|
-| `C0DL3Bridge.sol` | zkSync Era | Locks/unlocks assets, verifies withdrawal proofs |
+| `C0DL3Bridge.sol` | zkSync Era | Per-token denomination pools, withdrawal Merkle verification |
 | `COLDL3Settlement.sol` | zkSync Era | Commits L3 state roots (bridge verifies against these) |
 
 ## Fuego Bridge
@@ -331,7 +364,9 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Block explorer UI
 - [x] Docker image + docker-compose
 - [x] Live Era Sepolia settlement (ethers, dual-mode)
-- [x] Canonical bridge (C0DL3Bridge.sol + L3 withdrawal tree)
+- [x] Darkpool bridge — per-token denominations, anonymity set tracking (HEAT, ZK, CD, ETH)
+- [x] Withdrawal tree root committed in SP1 proofs (BlockExecutionClaim)
+- [x] Bridge deposit → shielded pool wiring (auto-mint on block production)
 
 ---
 

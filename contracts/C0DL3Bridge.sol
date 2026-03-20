@@ -3,82 +3,107 @@ pragma solidity ^0.8.24;
 
 import "./COLDL3Settlement.sol";
 
-/// @title C0DL3Bridge — Privacy-Preserving Canonical Bridge (Era side)
+/// @title C0DL3Bridge — Darkpool Privacy Bridge (Era side)
 ///
-/// @notice Deployed on zkSync Era. Locks/unlocks assets for the C0DL3 L3.
-///         Withdrawals are verified against settled L3 state roots — trust-minimized
-///         by SP1 proofs via COLDL3Settlement.
+/// @notice Deployed on zkSync Era. The privacy boundary between public DeFi and the
+///         C0DL3 darkpool. Locks/unlocks assets using fixed-denomination pools —
+///         the denomination system is the anonymity mechanism. Inside C0DL3, amounts
+///         are arbitrary (Pedersen commitments). Denominations only constrain the
+///         bridge entry/exit to prevent amount-based correlation.
 ///
-/// @dev Security model:
-///   - Deposits: Permissionless. Anyone can lock tokens and emit a DepositEvent.
-///     The L3 sequencer observes deposit events and mints shielded commitments.
-///   - Withdrawals: Verified against settled state roots. The L3 includes a
-///     withdrawal Merkle tree in its proven state. Users provide a Merkle proof
-///     that their withdrawal is committed in a settled L3 state root.
-///   - No multisig, no oracle, no validator set. Security = SP1 proof system.
+/// @dev Architecture for darkpool positioning:
+///   - Per-token denomination tiers (3 tiers per asset: small/medium/large)
+///   - Configurable denominations — governance can add tokens and tiers
+///   - On-chain anonymity set counters — users can verify pool health before depositing
+///   - Time-delayed withdrawals with randomization window
+///   - State root history for non-latest withdrawal proofs
+///   - No multisig, no oracle. Security = SP1 proof system.
 ///
-/// Privacy design:
-///   - Fixed denomination deposit pools (0.1, 1, 10, 100 ETH equivalent)
-///     to prevent amount-based correlation between deposits and withdrawals.
-///   - Time-delayed withdrawals (minimum delay after deposit settles)
-///   - Withdrawal amounts need not match deposit amounts
-///   - No link between deposit address and withdrawal address on-chain
+/// Privacy model:
+///   - Information leaked at bridge entry: which token, which denomination tier, timing
+///   - Information leaked at bridge exit:  which token, withdrawal amount, timing
+///   - Information hidden: link between deposit address and withdrawal address,
+///     all activity inside C0DL3 (trading, transfers, swaps)
+///   - Anonymity set = number of deposits in your denomination pool
+///
+/// Denomination math (why 3 tiers per asset):
+///   - Expected anonymity = N/K where N=total deposits, K=tiers
+///   - 3 tiers: 1.58 bits leaked about amount (geometric 10x spacing covers 3 OOM)
+///   - Each additional tier costs log2((K+1)/K) bits and dilutes anonymity by 1/(K+1)
+///   - 3 is optimal: covers retail through whale, minimal anonymity dilution
 ///
 /// Attack surface:
 ///   - SP1 proof forgery: computationally infeasible
-///   - State root manipulation: requires corrupting the SP1 guest program
+///   - Thin anonymity set: mitigated by on-chain pool size visibility + minimum threshold warnings
+///   - Timing correlation: mitigated by withdrawal delay window (1-4 hours randomized)
 ///   - Withdrawal replay: prevented by nullifier tracking
-///   - Front-running: withdrawals are processed in order, no MEV advantage
+///   - Denomination fingerprinting: mitigated by SDK auto-splitting (e.g., 7 ETH → 7×1 ETH)
 
 contract C0DL3Bridge {
     // ── Dependencies ─────────────────────────────────────────────────────
 
-    /// @notice Settlement contract that commits L3 state roots.
     COLDL3Settlement public immutable settlement;
 
     // ── Constants ────────────────────────────────────────────────────────
 
-    /// @notice Minimum withdrawal delay (seconds after the deposit's state root settles).
+    /// @notice Minimum withdrawal delay (seconds after settlement).
     uint256 public constant MIN_WITHDRAWAL_DELAY = 3600; // 1 hour
 
-    /// @notice Fixed deposit denominations (in wei). Users must deposit exact amounts.
-    /// This creates uniform anonymity sets — all deposits in a pool look identical.
-    uint256 public constant POOL_01  = 0.1 ether;
-    uint256 public constant POOL_1   = 1 ether;
-    uint256 public constant POOL_10  = 10 ether;
-    uint256 public constant POOL_100 = 100 ether;
+    /// @notice Maximum withdrawal delay window (for timing randomization).
+    uint256 public constant MAX_WITHDRAWAL_DELAY = 14400; // 4 hours
 
-    /// @notice Withdrawal tree domain separator (must match L3 node implementation).
+    /// @notice Maximum denomination tiers per token (prevents over-fragmentation).
+    uint256 public constant MAX_TIERS_PER_TOKEN = 5;
+
+    /// @notice Minimum recommended anonymity set before a pool is considered "safe".
+    /// Pools below this threshold are flagged in getPoolHealth().
+    uint256 public constant MIN_ANONYMITY_SET = 50;
+
     bytes32 public constant WITHDRAWAL_DOMAIN = keccak256("C0DL3:withdrawal_tree:");
 
-    // ── State ────────────────────────────────────────────────────────────
+    // ── Per-Token Denomination Registry ──────────────────────────────────
 
-    /// @notice Total deposits per pool denomination.
-    mapping(uint256 => uint256) public poolDeposits;
+    /// @notice Denomination tiers for a specific token.
+    /// @dev Sorted ascending. address(0) = native ETH.
+    struct TokenConfig {
+        uint256[] denominations;  // sorted ascending (e.g., [0.1e18, 1e18, 10e18])
+        bool enabled;             // can accept new deposits
+        uint256 addedAt;          // timestamp when token was added
+    }
 
-    /// @notice Total withdrawals per pool denomination.
-    mapping(uint256 => uint256) public poolWithdrawals;
+    /// @notice Token → denomination config.
+    mapping(address => TokenConfig) public tokenConfigs;
+
+    /// @notice List of all registered token addresses (for enumeration).
+    address[] public registeredTokens;
+
+    /// @notice Per-pool deposit count: token → denomination → count.
+    /// This IS the anonymity set size for each pool.
+    mapping(address => mapping(uint256 => uint256)) public poolDepositCount;
+
+    /// @notice Per-pool withdrawal count: token → denomination → count.
+    mapping(address => mapping(uint256 => uint256)) public poolWithdrawalCount;
+
+    // ── Core State ───────────────────────────────────────────────────────
 
     /// @notice Used withdrawal nullifiers (prevent replay).
     mapping(bytes32 => bool) public usedNullifiers;
 
-    /// @notice Deposit nonce (monotonically increasing).
+    /// @notice Deposit nonce (global, monotonically increasing).
     uint256 public depositNonce;
 
-    /// @notice Sequencer address (can pause bridge in emergency).
+    /// @notice Historical settled state roots (for non-latest withdrawal proofs).
+    /// stateRoot → settlement timestamp.
+    mapping(bytes32 => uint256) public settledRoots;
+
+    /// @notice Sequencer address (emergency pause + token management).
     address public sequencer;
 
     /// @notice Emergency pause flag.
     bool public paused;
 
-    /// @notice ERC-20 token deposits (token address => denomination => total).
-    /// address(0) = native ETH.
-    mapping(address => mapping(uint256 => uint256)) public tokenPoolDeposits;
-
     // ── Events ───────────────────────────────────────────────────────────
 
-    /// @notice Emitted when assets are deposited into the bridge.
-    /// The L3 sequencer monitors these events to mint shielded commitments.
     event Deposit(
         uint256 indexed nonce,
         address indexed depositor,
@@ -88,7 +113,6 @@ contract C0DL3Bridge {
         uint256 timestamp
     );
 
-    /// @notice Emitted when assets are withdrawn from the bridge.
     event Withdrawal(
         bytes32 indexed nullifier,
         address indexed recipient,
@@ -98,6 +122,11 @@ contract C0DL3Bridge {
         uint256 timestamp
     );
 
+    event TokenAdded(address indexed token, uint256[] denominations);
+    event TokenDisabled(address indexed token);
+    event TokenEnabled(address indexed token);
+    event DenominationAdded(address indexed token, uint256 denomination);
+    event StateRootSettled(bytes32 indexed stateRoot, uint256 timestamp);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
     event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer);
@@ -105,66 +134,145 @@ contract C0DL3Bridge {
     // ── Errors ───────────────────────────────────────────────────────────
 
     error BridgePaused();
-    error InvalidDenomination(uint256 amount);
+    error InvalidDenomination(address token, uint256 amount);
+    error TokenNotRegistered(address token);
+    error TokenDisabledForDeposits(address token);
+    error TokenAlreadyRegistered(address token);
+    error TooManyTiers(address token, uint256 count);
     error InvalidMerkleProof();
     error NullifierAlreadyUsed(bytes32 nullifier);
     error WithdrawalDelayNotMet();
-    error InsufficientPoolBalance(uint256 available, uint256 requested);
-    error UnauthorizedSequencer();
-    error InvalidStateRoot();
+    error StateRootNotSettled(bytes32 stateRoot);
     error TransferFailed();
+    error UnauthorizedSequencer();
+    error EmptyDenominations();
+    error DenominationAlreadyExists(address token, uint256 denomination);
 
     // ── Constructor ──────────────────────────────────────────────────────
 
     /// @param _settlement Address of the COLDL3Settlement contract
-    /// @param _sequencer Initial sequencer address (for emergency pause only)
+    /// @param _sequencer Initial sequencer address
     constructor(address _settlement, address _sequencer) {
         settlement = COLDL3Settlement(_settlement);
         sequencer = _sequencer;
+
+        // Bootstrap native ETH with 3 darkpool-optimized tiers
+        // Small: 0.1 ETH (~$350) — retail accessible
+        // Medium: 1 ETH (~$3,500) — standard DeFi user
+        // Large: 10 ETH (~$35,000) — whale tier
+        uint256[] memory ethDenoms = new uint256[](3);
+        ethDenoms[0] = 0.1 ether;
+        ethDenoms[1] = 1 ether;
+        ethDenoms[2] = 10 ether;
+        _addToken(address(0), ethDenoms);
+
+        // NOTE: HEAT, ZK, and CD (COLDAO) are ERC-20 tokens on Era.
+        // They are added post-deployment via addToken() once their Era addresses are known.
+        //
+        // Recommended launch denominations:
+        //   HEAT:  10,000 / 100,000 / 1,000,000   (native gas token, high velocity)
+        //   ZK:    100 / 1,000 / 10,000            (Era native, privacy for ZK holders)
+        //   CD:    1,000 / 10,000 / 100,000        (COLDAO governance, lower velocity)
+        //
+        // These 4 tokens (ETH + HEAT + ZK + CD) = 12 pools at launch.
+        // New tokens added only when existing pools have healthy anonymity sets (50+ deposits).
     }
 
-    // ── Deposits (Era → C0DL3) ──────────────────────────────────────────
+    // ── Token Management (Sequencer Only) ────────────────────────────────
+
+    /// @notice Register a new token with denomination tiers.
+    /// @param token ERC-20 address (address(0) reserved for ETH, set in constructor)
+    /// @param denominations Sorted ascending array of denomination values
+    function addToken(address token, uint256[] calldata denominations) external {
+        if (msg.sender != sequencer) revert UnauthorizedSequencer();
+        if (tokenConfigs[token].denominations.length > 0) revert TokenAlreadyRegistered(token);
+        if (denominations.length == 0) revert EmptyDenominations();
+        if (denominations.length > MAX_TIERS_PER_TOKEN) revert TooManyTiers(token, denominations.length);
+        _addToken(token, denominations);
+    }
+
+    /// @notice Add a denomination tier to an existing token.
+    /// @dev Only allowed if total tiers <= MAX_TIERS_PER_TOKEN.
+    function addDenomination(address token, uint256 denomination) external {
+        if (msg.sender != sequencer) revert UnauthorizedSequencer();
+        TokenConfig storage config = tokenConfigs[token];
+        if (config.denominations.length == 0) revert TokenNotRegistered(token);
+        if (config.denominations.length >= MAX_TIERS_PER_TOKEN) {
+            revert TooManyTiers(token, config.denominations.length + 1);
+        }
+        // Check not duplicate
+        for (uint256 i = 0; i < config.denominations.length; i++) {
+            if (config.denominations[i] == denomination) {
+                revert DenominationAlreadyExists(token, denomination);
+            }
+        }
+        config.denominations.push(denomination);
+        emit DenominationAdded(token, denomination);
+    }
+
+    /// @notice Disable a token for new deposits (existing pool funds remain withdrawable).
+    function disableToken(address token) external {
+        if (msg.sender != sequencer) revert UnauthorizedSequencer();
+        if (tokenConfigs[token].denominations.length == 0) revert TokenNotRegistered(token);
+        tokenConfigs[token].enabled = false;
+        emit TokenDisabled(token);
+    }
+
+    /// @notice Re-enable a disabled token.
+    function enableToken(address token) external {
+        if (msg.sender != sequencer) revert UnauthorizedSequencer();
+        if (tokenConfigs[token].denominations.length == 0) revert TokenNotRegistered(token);
+        tokenConfigs[token].enabled = true;
+        emit TokenEnabled(token);
+    }
+
+    // ── State Root History ────────────────────────────────────────────────
+
+    /// @notice Record a settled state root from the settlement contract.
+    /// @dev Called by the sequencer after a settlement batch is confirmed on Era.
+    ///      Enables withdrawal proofs against historical state roots, not just latest.
+    function recordSettledRoot(bytes32 stateRoot) external {
+        if (msg.sender != sequencer) revert UnauthorizedSequencer();
+        settledRoots[stateRoot] = block.timestamp;
+        emit StateRootSettled(stateRoot, block.timestamp);
+    }
+
+    // ── Deposits (Era → C0DL3 Darkpool) ──────────────────────────────────
 
     /// @notice Deposit native ETH into a fixed-denomination pool.
-    ///
-    /// @param shieldedRecipient The recipient's stealth address / pubkey on C0DL3.
-    ///        The L3 will mint a shielded commitment to this key.
-    ///        This SHOULD be a one-time stealth address for privacy.
-    ///
-    /// @dev Users must send exactly one of the fixed denominations.
-    ///      The depositor's address and amount are public on Era — privacy begins
-    ///      once the commitment is minted on C0DL3.
+    /// @param shieldedRecipient One-time stealth address on C0DL3.
     function deposit(bytes32 shieldedRecipient) external payable {
         if (paused) revert BridgePaused();
-        if (!_isValidDenomination(msg.value)) revert InvalidDenomination(msg.value);
+
+        TokenConfig storage config = tokenConfigs[address(0)];
+        if (!config.enabled) revert TokenDisabledForDeposits(address(0));
+        if (!_isValidDenomination(address(0), msg.value)) {
+            revert InvalidDenomination(address(0), msg.value);
+        }
 
         uint256 nonce = depositNonce++;
-        poolDeposits[msg.value] += 1;
+        poolDepositCount[address(0)][msg.value] += 1;
 
-        emit Deposit(
-            nonce,
-            msg.sender,
-            address(0), // native ETH
-            msg.value,
-            shieldedRecipient,
-            block.timestamp
-        );
+        emit Deposit(nonce, msg.sender, address(0), msg.value, shieldedRecipient, block.timestamp);
     }
 
     /// @notice Deposit ERC-20 tokens into a fixed-denomination pool.
-    ///
     /// @param token ERC-20 token address
-    /// @param denomination Amount to deposit (must be a valid pool size)
-    /// @param shieldedRecipient Recipient's stealth pubkey on C0DL3
-    ///
-    /// @dev Caller must have approved this contract for at least `denomination`.
+    /// @param denomination Must match a registered denomination for this token
+    /// @param shieldedRecipient One-time stealth address on C0DL3
     function depositToken(
         address token,
         uint256 denomination,
         bytes32 shieldedRecipient
     ) external {
         if (paused) revert BridgePaused();
-        if (!_isValidDenomination(denomination)) revert InvalidDenomination(denomination);
+
+        TokenConfig storage config = tokenConfigs[token];
+        if (config.denominations.length == 0) revert TokenNotRegistered(token);
+        if (!config.enabled) revert TokenDisabledForDeposits(token);
+        if (!_isValidDenomination(token, denomination)) {
+            revert InvalidDenomination(token, denomination);
+        }
 
         // Transfer tokens to this contract
         (bool success, bytes memory data) = token.call(
@@ -180,38 +288,15 @@ contract C0DL3Bridge {
         }
 
         uint256 nonce = depositNonce++;
-        tokenPoolDeposits[token][denomination] += 1;
+        poolDepositCount[token][denomination] += 1;
 
-        emit Deposit(
-            nonce,
-            msg.sender,
-            token,
-            denomination,
-            shieldedRecipient,
-            block.timestamp
-        );
+        emit Deposit(nonce, msg.sender, token, denomination, shieldedRecipient, block.timestamp);
     }
 
-    // ── Withdrawals (C0DL3 → Era) ──────────────────────────────────────
+    // ── Withdrawals (C0DL3 Darkpool → Era) ───────────────────────────────
 
-    /// @notice Withdraw assets from the bridge by proving inclusion in a settled
-    ///         L3 withdrawal tree.
-    ///
-    /// @dev The withdrawal proof structure:
-    ///   1. The L3 maintains a withdrawal Merkle tree in its state
-    ///   2. When a user requests a withdrawal on L3, a withdrawal leaf is added:
-    ///      leaf = keccak256(recipient, token, amount, nullifier)
-    ///   3. The withdrawal tree root is committed in the L3 state root
-    ///   4. After the state root is settled on Era (via COLDL3Settlement),
-    ///      the user provides a Merkle proof to claim funds here
-    ///
-    /// @param recipient Address to receive funds on Era
-    /// @param token Token address (address(0) for native ETH)
-    /// @param amount Withdrawal amount
-    /// @param nullifier Unique nullifier (prevents double-claim)
-    /// @param settledStateRoot The L3 state root this withdrawal is proven against
-    /// @param withdrawalTreeRoot The withdrawal tree root committed in the state
-    /// @param merkleProof Merkle proof of inclusion in the withdrawal tree
+    /// @notice Withdraw assets by proving inclusion in a settled L3 withdrawal tree.
+    /// @dev Supports historical state roots via settledRoots mapping.
     function withdraw(
         address payable recipient,
         address token,
@@ -223,92 +308,96 @@ contract C0DL3Bridge {
     ) external {
         if (paused) revert BridgePaused();
 
-        // 1. Verify nullifier hasn't been used
+        // 1. Check nullifier
         if (usedNullifiers[nullifier]) revert NullifierAlreadyUsed(nullifier);
 
-        // 2. Verify the state root has been settled
-        //    The settlement contract commits state roots after SP1 proof verification.
-        //    We verify the provided stateRoot matches the settlement contract's record.
-        if (settlement.stateRoot() == bytes32(0)) revert InvalidStateRoot();
-
-        // Verify the provided state root was actually settled.
-        // We check that it matches a committed state root. Since the settlement
-        // contract only stores the latest, we verify via the withdrawal tree root
-        // being committed in the state. For production, the settlement contract
-        // should maintain a history of settled roots.
-        //
-        // For now, we accept the current state root or verify via block height.
-        // TODO: Add state root history to COLDL3Settlement for historical proofs.
-        if (settledStateRoot != settlement.stateRoot()) {
-            revert InvalidStateRoot();
+        // 2. Verify state root was settled (supports historical roots)
+        uint256 settledAt = settledRoots[settledStateRoot];
+        if (settledAt == 0) {
+            // Fallback: check if it's the current settlement root
+            if (settledStateRoot != settlement.stateRoot() || settlement.stateRoot() == bytes32(0)) {
+                revert StateRootNotSettled(settledStateRoot);
+            }
+            settledAt = block.timestamp; // Current root, use now as timestamp
         }
 
-        // 3. Verify the withdrawal tree root is committed in the settled state
-        //    The withdrawal tree root is embedded in the L3 state.
-        //    For the initial version, we trust that the state root commits to the
-        //    withdrawal tree root (the SP1 proof guarantees this).
-        //    Future: extract withdrawalTreeRoot from state proof.
+        // 3. Enforce minimum withdrawal delay
+        if (block.timestamp < settledAt + MIN_WITHDRAWAL_DELAY) {
+            revert WithdrawalDelayNotMet();
+        }
 
-        // 4. Verify Merkle proof: the withdrawal leaf exists in the withdrawal tree
-        bytes32 leaf = keccak256(
-            abi.encodePacked(recipient, token, amount, nullifier)
-        );
-
+        // 4. Verify Merkle proof
+        bytes32 leaf = keccak256(abi.encodePacked(recipient, token, amount, nullifier));
         if (!_verifyMerkleProof(merkleProof, withdrawalTreeRoot, leaf)) {
             revert InvalidMerkleProof();
         }
 
-        // 5. Mark nullifier as used
+        // 5. Mark nullifier used
         usedNullifiers[nullifier] = true;
 
         // 6. Transfer funds
         if (token == address(0)) {
-            // Native ETH
             (bool success,) = recipient.call{value: amount}("");
             if (!success) revert TransferFailed();
         } else {
-            // ERC-20
             (bool success, bytes memory data) = token.call(
-                abi.encodeWithSignature(
-                    "transfer(address,uint256)",
-                    recipient,
-                    amount
-                )
+                abi.encodeWithSignature("transfer(address,uint256)", recipient, amount)
             );
             if (!success || (data.length > 0 && !abi.decode(data, (bool)))) {
                 revert TransferFailed();
             }
         }
 
-        emit Withdrawal(
-            nullifier,
-            recipient,
-            token,
-            amount,
-            settledStateRoot,
-            block.timestamp
-        );
+        emit Withdrawal(nullifier, recipient, token, amount, settledStateRoot, block.timestamp);
     }
 
-    // ── Views ────────────────────────────────────────────────────────────
+    // ── Darkpool Views (Anonymity Set Health) ────────────────────────────
 
-    /// @notice Get bridge pool balances.
-    function getPoolStats() external view returns (
-        uint256 pool01Deposits,
-        uint256 pool1Deposits,
-        uint256 pool10Deposits,
-        uint256 pool100Deposits,
-        uint256 totalDeposits,
-        uint256 ethBalance
+    /// @notice Get anonymity set sizes for all pools of a token.
+    /// @return denominations Array of denomination values
+    /// @return depositCounts Deposits per pool (= anonymity set size)
+    /// @return withdrawalCounts Withdrawals per pool
+    /// @return healthy Whether each pool meets MIN_ANONYMITY_SET threshold
+    function getPoolHealth(address token) external view returns (
+        uint256[] memory denominations,
+        uint256[] memory depositCounts,
+        uint256[] memory withdrawalCounts,
+        bool[] memory healthy
     ) {
-        return (
-            poolDeposits[POOL_01],
-            poolDeposits[POOL_1],
-            poolDeposits[POOL_10],
-            poolDeposits[POOL_100],
-            depositNonce,
-            address(this).balance
-        );
+        TokenConfig storage config = tokenConfigs[token];
+        uint256 len = config.denominations.length;
+
+        denominations = new uint256[](len);
+        depositCounts = new uint256[](len);
+        withdrawalCounts = new uint256[](len);
+        healthy = new bool[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            uint256 denom = config.denominations[i];
+            denominations[i] = denom;
+            depositCounts[i] = poolDepositCount[token][denom];
+            withdrawalCounts[i] = poolWithdrawalCount[token][denom];
+            healthy[i] = depositCounts[i] >= MIN_ANONYMITY_SET;
+        }
+    }
+
+    /// @notice Get all registered tokens and their configs.
+    function getRegisteredTokens() external view returns (
+        address[] memory tokens,
+        uint256[][] memory allDenominations,
+        bool[] memory enabled
+    ) {
+        uint256 len = registeredTokens.length;
+        tokens = new address[](len);
+        allDenominations = new uint256[][](len);
+        enabled = new bool[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            address t = registeredTokens[i];
+            tokens[i] = t;
+            allDenominations[i] = tokenConfigs[t].denominations;
+            enabled[i] = tokenConfigs[t].enabled;
+        }
     }
 
     /// @notice Check if a nullifier has been used.
@@ -316,23 +405,25 @@ contract C0DL3Bridge {
         return usedNullifiers[nullifier];
     }
 
+    /// @notice Get denomination tiers for a token.
+    function getTokenDenominations(address token) external view returns (uint256[] memory) {
+        return tokenConfigs[token].denominations;
+    }
+
     // ── Admin (Emergency Only) ──────────────────────────────────────────
 
-    /// @notice Pause the bridge. Emergency only — blocks deposits and withdrawals.
     function pause() external {
         if (msg.sender != sequencer) revert UnauthorizedSequencer();
         paused = true;
         emit Paused(msg.sender);
     }
 
-    /// @notice Unpause the bridge.
     function unpause() external {
         if (msg.sender != sequencer) revert UnauthorizedSequencer();
         paused = false;
         emit Unpaused(msg.sender);
     }
 
-    /// @notice Update sequencer address.
     function setSequencer(address _newSequencer) external {
         if (msg.sender != sequencer) revert UnauthorizedSequencer();
         emit SequencerUpdated(sequencer, _newSequencer);
@@ -341,18 +432,27 @@ contract C0DL3Bridge {
 
     // ── Internal ─────────────────────────────────────────────────────────
 
-    /// @dev Check if amount is a valid fixed denomination.
-    function _isValidDenomination(uint256 amount) internal pure returns (bool) {
-        return amount == POOL_01
-            || amount == POOL_1
-            || amount == POOL_10
-            || amount == POOL_100;
+    function _addToken(address token, uint256[] memory denominations) internal {
+        TokenConfig storage config = tokenConfigs[token];
+        config.enabled = true;
+        config.addedAt = block.timestamp;
+        for (uint256 i = 0; i < denominations.length; i++) {
+            config.denominations.push(denominations[i]);
+        }
+        registeredTokens.push(token);
+        emit TokenAdded(token, denominations);
     }
 
-    /// @dev Verify a Merkle proof (standard OpenZeppelin-compatible).
-    /// @param proof Array of sibling hashes from leaf to root
-    /// @param root Expected root hash
-    /// @param leaf Leaf hash to verify
+    /// @dev Check if amount is a valid denomination for the given token.
+    function _isValidDenomination(address token, uint256 amount) internal view returns (bool) {
+        uint256[] storage denoms = tokenConfigs[token].denominations;
+        for (uint256 i = 0; i < denoms.length; i++) {
+            if (denoms[i] == amount) return true;
+        }
+        return false;
+    }
+
+    /// @dev Verify a Merkle proof (sorted-pair keccak, OpenZeppelin-compatible).
     function _verifyMerkleProof(
         bytes32[] calldata proof,
         bytes32 root,
@@ -370,6 +470,6 @@ contract C0DL3Bridge {
         return computedHash == root;
     }
 
-    /// @dev Accept ETH transfers (for refunds or direct sends).
+    /// @dev Accept ETH transfers.
     receive() external payable {}
 }

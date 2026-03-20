@@ -244,6 +244,9 @@ pub struct RollupState {
     /// Account-level execution nullifiers for Mode 1 (account/DeFi transactions).
     /// H("C0DL3:acct:" || sender_addr || nonce_le) — commitment-level binding per executed tx.
     pub account_nullifiers: HashSet<[u8; 32]>,
+    /// Bridge withdrawal tree root (committed in SP1 proofs for Era-side verification).
+    /// Updated by the bridge manager whenever a withdrawal is accepted.
+    pub withdrawal_tree_root: [u8; 32],
 
     // ── Prover market state ──────────────────────────────────────────────────
     /// Pending proof submissions per block (block_height → list of submissions).
@@ -276,6 +279,7 @@ impl RollupState {
             blocks: HashMap::new(),
             shielded_pool: ShieldedPool::new(),
             account_nullifiers: HashSet::new(),
+            withdrawal_tree_root: [0u8; 32],
             pending_proofs: HashMap::new(),
             proven_blocks: HashMap::new(),
             block_economics_map: HashMap::new(),
@@ -357,6 +361,7 @@ impl RollupState {
             total_gas_used: block.header.gas_used,
             note_tree_root: self.shielded_pool.note_tree_root,
             nullifier_count: self.shielded_pool.nullifier_count() as u32,
+            withdrawal_tree_root: self.withdrawal_tree_root,
         };
 
         // Verify proof against claim — SP1 cryptographic verification.
@@ -787,6 +792,7 @@ impl C0DL3ZkSyncNode {
         let l1_batches = self.l1_batches.clone();
         let fuego_client = self.fuego_client.clone();
         let state_db = self.state_db.clone();
+        let bridge_manager = self.bridge_manager.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(config.sequencer.block_time_secs));
@@ -812,6 +818,27 @@ impl C0DL3ZkSyncNode {
                         config.zksync.validator_address.clone()
                     }
                 };
+
+                // ── Process bridge deposits ──────────────────────────────────
+                // Drain pending deposits from the bridge manager and mint
+                // shielded commitments in the pool. This happens every block.
+                {
+                    let mut bm = bridge_manager.lock().unwrap();
+                    let mut state = rollup_state.lock().unwrap();
+                    while let Some(processed) = bm.process_next_deposit() {
+                        // Add the note to the shielded pool
+                        let position = state.shielded_pool.add_note(
+                            processed.note_commitment,
+                            processed.recipient_pubkey,
+                        );
+                        debug!(
+                            "Bridge deposit → shielded note: nonce={}, position={}, pool_size={}",
+                            processed.nonce, position, state.shielded_pool.note_count(),
+                        );
+                    }
+                    // Sync withdrawal tree root to rollup state (for SP1 proof commitment)
+                    state.withdrawal_tree_root = bm.withdrawal_tree_root();
+                }
 
                 // Drain pending transactions
                 let txs: Vec<Transaction> = {
@@ -1167,6 +1194,7 @@ impl C0DL3ZkSyncNode {
                         total_gas_used: block.header.gas_used,
                         note_tree_root: rollup.shielded_pool.note_tree_root,
                         nullifier_count: rollup.shielded_pool.nullifier_count() as u32,
+                        withdrawal_tree_root: rollup.withdrawal_tree_root,
                     };
                     claim.encode()
                 } else {
@@ -1565,6 +1593,7 @@ impl C0DL3ZkSyncNode {
 
             // Bridge (Era ↔ C0DL3)
             .route("/bridge/status", get(get_bridge_status))
+            .route("/bridge/pools", get(get_bridge_pools))
             .route("/bridge/withdraw", post(bridge_withdraw))
             .route("/bridge/withdrawal_proof/{position}", get(get_withdrawal_proof))
 
@@ -2637,13 +2666,18 @@ async fn bridge_withdraw(
     nullifier.copy_from_slice(&nullifier_bytes);
 
     let node = state.node.lock().unwrap();
-    let rollup = node.rollup_state.lock().unwrap();
-    let block_height = rollup.block_height;
-    drop(rollup);
+    let block_height = {
+        let rollup = node.rollup_state.lock().unwrap();
+        rollup.block_height
+    };
 
     let mut bm = node.bridge_manager.lock().unwrap();
     match bm.accept_withdrawal(recipient.clone(), token, amount, nullifier, block_height) {
         Ok((position, new_root)) => {
+            // Sync withdrawal tree root to rollup state for next SP1 proof
+            let mut rollup = node.rollup_state.lock().unwrap();
+            rollup.withdrawal_tree_root = new_root;
+
             Ok(Json(json!({
                 "status": "accepted",
                 "position": position,
@@ -2691,6 +2725,38 @@ async fn get_withdrawal_proof(
         }
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+/// GET /bridge/pools — darkpool anonymity set health for all tokens and tiers.
+/// Users should check this before depositing to verify pool health.
+async fn get_bridge_pools(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let bm = node.bridge_manager.lock().unwrap();
+
+    let pools = bm.pool_health();
+    let tokens: Vec<serde_json::Value> = bm.token_configs.iter().map(|t| {
+        let tiers: Vec<serde_json::Value> = t.denominations.iter().map(|d| {
+            let count = t.anonymity_set(*d);
+            json!({
+                "denomination": d,
+                "deposit_count": count,
+                "healthy": count >= bridge::MIN_ANONYMITY_SET,
+                "min_threshold": bridge::MIN_ANONYMITY_SET,
+            })
+        }).collect();
+        json!({
+            "token": t.token,
+            "symbol": t.symbol,
+            "enabled": t.enabled,
+            "tiers": tiers,
+        })
+    }).collect();
+
+    Json(json!({
+        "darkpool_pools": tokens,
+        "min_anonymity_set": bridge::MIN_ANONYMITY_SET,
+        "recommendation": "Only deposit into pools with 50+ deposits for meaningful privacy.",
+    }))
 }
 
 // ──────────────────────────────────────────────
