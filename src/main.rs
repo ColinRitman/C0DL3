@@ -29,6 +29,7 @@ mod economics;
 mod tokens;
 mod genesis;
 mod proving;
+mod bridge;
 mod settlement;
 mod storage;
 #[cfg(feature = "cli-ui")]
@@ -606,6 +607,8 @@ pub struct C0DL3ZkSyncNode {
     genesis_config: genesis::GenesisConfig,
     /// Privacy manager (Bulletproofs CT, address encryption)
     privacy_manager: Option<privacy::UserPrivacyManager>,
+    /// Bridge manager — canonical bridge (Era ↔ C0DL3)
+    bridge_manager: Arc<Mutex<bridge::BridgeManager>>,
     /// Node start time
     start_time: Instant,
 }
@@ -715,6 +718,10 @@ impl C0DL3ZkSyncNode {
             hyperchain_config,
             genesis_config,
             privacy_manager,
+            bridge_manager: Arc::new(Mutex::new(bridge::BridgeManager::new(
+                String::new(), // Set via CLI or config when bridge is deployed
+                settlement_module_config.era_rpc_url.clone(),
+            ))),
             start_time: Instant::now(),
         }
     }
@@ -1555,6 +1562,11 @@ impl C0DL3ZkSyncNode {
 
             // Ethereum JSON-RPC compatibility (POST /)
             .route("/rpc", post(eth_json_rpc))
+
+            // Bridge (Era ↔ C0DL3)
+            .route("/bridge/status", get(get_bridge_status))
+            .route("/bridge/withdraw", post(bridge_withdraw))
+            .route("/bridge/withdrawal_proof/{position}", get(get_withdrawal_proof))
 
             // Block explorer UI
             .route("/explorer", get(explorer_ui))
@@ -2581,6 +2593,104 @@ async fn get_settlement_batches(State(state): State<AppState>) -> Json<serde_jso
         "submitted": submitted.iter().map(format_batch).collect::<Vec<_>>(),
         "settled": settled.iter().map(format_batch).collect::<Vec<_>>(),
     }))
+}
+
+// ──────────────────────────────────────────────
+// Bridge endpoints (Era ↔ C0DL3)
+// ──────────────────────────────────────────────
+
+/// GET /bridge/status — bridge pipeline status.
+async fn get_bridge_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let node = state.node.lock().unwrap();
+    let bm = node.bridge_manager.lock().unwrap();
+    let summary = bm.summary();
+    Json(json!({ "bridge": summary }))
+}
+
+/// POST /bridge/withdraw — request a withdrawal from C0DL3 to Era.
+/// The user must have already spent their shielded commitment (nullifier consumed).
+async fn bridge_withdraw(
+    State(state): State<AppState>,
+    Json(request): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let recipient = request.get("recipient")
+        .and_then(|v| v.as_str())
+        .ok_or(StatusCode::BAD_REQUEST)?
+        .to_string();
+    let token = request.get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0x0000000000000000000000000000000000000000")
+        .to_string();
+    let amount = request.get("amount")
+        .and_then(|v| v.as_u64())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let nullifier_hex = request.get("nullifier")
+        .and_then(|v| v.as_str())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    let nullifier_bytes = hex::decode(nullifier_hex.trim_start_matches("0x"))
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    if nullifier_bytes.len() != 32 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut nullifier = [0u8; 32];
+    nullifier.copy_from_slice(&nullifier_bytes);
+
+    let node = state.node.lock().unwrap();
+    let rollup = node.rollup_state.lock().unwrap();
+    let block_height = rollup.block_height;
+    drop(rollup);
+
+    let mut bm = node.bridge_manager.lock().unwrap();
+    match bm.accept_withdrawal(recipient.clone(), token, amount, nullifier, block_height) {
+        Ok((position, new_root)) => {
+            Ok(Json(json!({
+                "status": "accepted",
+                "position": position,
+                "withdrawal_tree_root": hex::encode(new_root),
+                "message": "Withdrawal queued. Claim on Era after state root settles.",
+            })))
+        }
+        Err(e) => {
+            Ok(Json(json!({
+                "status": "rejected",
+                "error": e.to_string(),
+            })))
+        }
+    }
+}
+
+/// GET /bridge/withdrawal_proof/:position — get Merkle proof for claiming on Era.
+async fn get_withdrawal_proof(
+    State(state): State<AppState>,
+    Path(position): Path<usize>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let node = state.node.lock().unwrap();
+    let bm = node.bridge_manager.lock().unwrap();
+
+    match bm.withdrawal_proof(position) {
+        Some(proof) => {
+            let proof_hex: Vec<String> = proof.iter()
+                .map(|h| format!("0x{}", hex::encode(h)))
+                .collect();
+
+            let withdrawal = bm.withdrawals.get(position);
+
+            Ok(Json(json!({
+                "position": position,
+                "withdrawal_tree_root": format!("0x{}", hex::encode(bm.withdrawal_tree_root())),
+                "merkle_proof": proof_hex,
+                "withdrawal": withdrawal.map(|w| json!({
+                    "recipient": w.recipient,
+                    "token": w.token,
+                    "amount": w.amount,
+                    "nullifier": format!("0x{}", hex::encode(w.nullifier)),
+                    "settled": w.settled,
+                })),
+            })))
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 // ──────────────────────────────────────────────

@@ -142,6 +142,7 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 │   ├── privacy/      Shielded pool, commitment proofs, stealth addresses
 │   ├── genesis/      Chain identity, testnet bootstrap, initial allocations
 │   ├── proving/      SP1 proof verification (real-proofs feature gate)
+│   ├── bridge/       Canonical bridge (Era ↔ C0DL3, withdrawal tree)
 │   ├── settlement/   L3→L2 batch settlement pipeline
 │   └── storage/      Persistent state (sled KV store)
 ├── program/          SP1 guest — zkVM block proof circuit
@@ -151,7 +152,8 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 ├── contracts/        Reference Solidity contracts
 │   ├── PrivateWallet.sol   AA wallet (Pedersen commitments)
 │   ├── Paymaster.sol       Gas payment abstraction
-│   └── COLDL3Settlement.sol  L2 settlement (SP1 proof verification)
+│   ├── COLDL3Settlement.sol  L2 settlement (SP1 proof verification)
+│   └── C0DL3Bridge.sol       Canonical bridge (deposit pools, withdrawal proofs)
 ├── sdk/              Wallet SDK — proof builders, auto-shield, stealth, memos
 ├── prover/           Standalone SP1 prover node
 ├── explorer/         Minimal block explorer UI (served at /explorer)
@@ -260,11 +262,45 @@ cargo run --release -- \
 | `/storage/status` | GET | Persistent state database info |
 | `/aa/create_wallet` | POST | Create AA PrivateWallet |
 | `/aa/send` | POST | Submit AA UserOperation |
+| `/bridge/status` | GET | Bridge pipeline status |
+| `/bridge/withdraw` | POST | Request withdrawal from C0DL3 to Era |
+| `/bridge/withdrawal_proof/{pos}` | GET | Merkle proof for claiming on Era |
 | `/explorer` | GET | Block explorer UI |
 
 **Persistent state:** The node stores all state to disk (sled). Survives restarts — resumes from last block height.
 
 ---
+
+## Canonical Bridge (Era ↔ C0DL3)
+
+Privacy-preserving canonical bridge secured by SP1 proofs. No multisig, no oracle.
+
+**Deposit (Era → C0DL3):**
+```
+1. User deposits ETH/tokens to C0DL3Bridge.sol on Era (fixed denomination pool)
+2. Sequencer observes Deposit event on Era
+3. L3 mints shielded Pedersen commitment to user's stealth address
+4. Privacy begins — amount hidden inside C0DL3
+```
+
+**Withdrawal (C0DL3 → Era):**
+```
+1. User proves ownership of commitment on L3 (spends nullifier)
+2. L3 adds withdrawal leaf to withdrawal Merkle tree
+3. Withdrawal tree root committed in state → proven by SP1
+4. After settlement, user claims on Era with Merkle proof
+```
+
+**Privacy features:**
+- Fixed denomination pools (0.1, 1, 10, 100 ETH) — prevents amount correlation
+- Withdrawal amounts need not match deposit amounts
+- No on-chain link between deposit address and withdrawal address
+- Time-delayed withdrawals (minimum 1 hour after settlement)
+
+| Contract | Chain | Purpose |
+|----------|-------|---------|
+| `C0DL3Bridge.sol` | zkSync Era | Locks/unlocks assets, verifies withdrawal proofs |
+| `COLDL3Settlement.sol` | zkSync Era | Commits L3 state roots (bridge verifies against these) |
 
 ## Fuego Bridge
 
@@ -295,6 +331,7 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Block explorer UI
 - [x] Docker image + docker-compose
 - [x] Live Era Sepolia settlement (ethers, dual-mode)
+- [x] Canonical bridge (C0DL3Bridge.sol + L3 withdrawal tree)
 
 ---
 
