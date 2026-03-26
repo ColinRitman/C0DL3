@@ -1,15 +1,15 @@
-# Fwei: Fuego's Native Gas Unit
+# `Fwei` <sub><sup>on</sub></sub> `C0DL3`
 
 ## Overview
 
-**Fwei** is Fuego's native gas unit, designed specifically for the HEAT ecosystem. It provides a practical and intuitive way to express gas prices and transaction costs in the Fuego blockchain.
+**Fwei** is the native gas unit for Fuego's `C0DL3` ZK privacy rollup. Designed specifically for the HEAT ecosystem, it provides a practical and intuitive way to express gas prices and transaction costs on C0DL3.
 
 ## Unit Definitions
 
-### Fwei (Fuego Wei)
-- **1 fwei = 0.001 HEAT** (3rd decimal atomic unit of HEAT)
-- **1 fwei = 1,000,000,000,000,000 wei** (10^15 wei)
-- **1 fwei = 1,000,000 Gwei** (1 Million Gwei)
+### Fwæ (Fuego Wei)
+- **1 fwæi = 0.001 HEAT** (3rd decimal atomic unit of HEAT)
+- **1 fwæi = 1,000,000,000,000,000 wei** (10^15 wei)
+- **1 fwæi = 1,000,000 Gwei** (1 Million Gwei)
 
 ### HEAT Token
 - **1 HEAT = 1,000 fwei**
@@ -81,7 +81,7 @@
 - **HEAT Supply**: ~69 trillion tokens
 - **ETH Supply**: ~120 million tokens
 - **Supply Ratio**: ~575,000x
-- **Fwei/Gwei Ratio**: 1,000,000x (appropriate for larger supply)
+- **Fwei/Gwei Ratio**: 1,000,000x (rational for larger supply)
 
 ### 2. Practical Usage
 - **Intuitive**: 420 fwei = 0.420 HEAT (matching amounts)
