@@ -94,5 +94,5 @@ The guest program (`program/src/main.rs`) proves:
 
 ## Rewards
 
-- **Gas fees** — 69% of total block fees routed to proving winner
+- **Gas fees** — 69% of total block fees routed to winning prover
 - First valid proof per block wins reward
