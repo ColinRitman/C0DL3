@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Branch](https://img.shields.io/badge/branch-zkc0dl3-blueviolet.svg)](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3)
 
-**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the zkSync ecosystem. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, COLD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
+**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the public zkSync ecosystem. All balances are private by default — every account is an AA smart contract wallet storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, COLD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
 
 ---
 
@@ -274,7 +274,7 @@ cargo run --release -- \
 
 ## Darkpool Bridge (Era ↔ C0DL3)
 
-Privacy-preserving canonical bridge — the privacy boundary between public DeFi and the C0DL3 darkpool. Fixed-denomination pools prevent amount-based correlation. Inside C0DL3, amounts are arbitrary (Pedersen commitments). No multisig, no oracle — security = SP1 proofs.
+Privacy-preserving canon bridge — the privacy boundary between public DeFi and the C0DL3 darkpool. Fixed-denomination pools prevent amount-based correlation. Inside C0DL3, amounts are arbitrary (Pedersen commitments). No multisig, no oracle — security = SP1 proofs.
 
 **Deposit (Era → C0DL3):**
 ```
@@ -296,25 +296,25 @@ Privacy-preserving canonical bridge — the privacy boundary between public DeFi
 
 | Token | Small | Medium | Large | Role |
 |-------|-------|--------|-------|------|
-| HEAT | 10,000 | 100,000 | 1,000,000 | Native gas token |
-| ZK | 100 | 1,000 | 10,000 | Era native — privacy for ZK holders |
-| CD | 1,000 | 10,000 | 100,000 | COLDAO governance |
-| ETH | 0.1 | 1 | 10 | Bluechip base asset |
+| HEAT | 100,000 | 10 Million | 1 Billion | Native gas token |
+| ZK | 1000 | 10,000 | 100,000 | Era native — privacy for ZK holders |
+| C0LD | 0.0001 | 0.001 | 0.1 | COLDAO governance |
+| ETH | 0.1 | 1 | 10 | Based asset |
 
 **Why 3 denominations per token:**
 - Expected anonymity = N/K (N=total deposits, K=tiers) — 3 tiers leak only 1.58 bits about amount
-- Geometric 10x spacing covers 3 orders of magnitude (retail through whale)
-- Each additional tier dilutes anonymity by 1/(K+1) — 4th tier costs 25% for marginal efficiency gain
-- Minimum anonymity set threshold: 50 deposits per pool before meaningful privacy
+- Exponential spacing covers 3 orders of magnitude (retail through whale)
+- Each additional tier dilutes anonymity by 1/(K+1) — 4th tier costs 25% for only marginal efficiency gain
+- Minimum anonymity set threshold: 50 deposits per pool before meaningful privacy begins
 
 **Per-token denomination registry:**
 - Configurable via governance (sequencer can `addToken()` / `addDenomination()`)
-- Maximum 5 tiers per token (prevents over-fragmentation)
-- On-chain anonymity set counters via `getPoolHealth()` — users verify pool safety before depositing
-- New tokens added only when existing pools have healthy anonymity sets
+- Maximum 3 tiers per token (prevents over-fragmentation)
+- On-chain anonymity set counters via `getPoolHealth()` lets users verify pool safety before depositing
+- New tokens added by C0LDAO approval, only when existing pools have healthy anonymity sets
 
 **Privacy features:**
-- Fixed denomination pools — prevents amount-based deposit/withdrawal correlation
+- Fixed denomination pools prevent amount-based deposit/withdrawal correlation
 - Withdrawal amounts need not match deposit amounts
 - No on-chain link between deposit address and withdrawal address
 - Time-delayed withdrawals (1-4 hour window for timing decorrelation)
@@ -326,7 +326,7 @@ Privacy-preserving canonical bridge — the privacy boundary between public DeFi
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/bridge/status` | GET | Bridge pipeline status (deposits, withdrawals, tree root) |
-| `/bridge/pools` | GET | Darkpool anonymity set health for all tokens and tiers |
+| `/bridge/pools` | GET | Darkpool anonymity sets for all tokens and tiers |
 | `/bridge/withdraw` | POST | Request withdrawal from C0DL3 to Era |
 | `/bridge/withdrawal_proof/{pos}` | GET | Merkle proof for claiming on Era |
 
@@ -348,7 +348,7 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Client-side partial proving (commitment knowledge proofs)
 - [x] Privacy precompile suite (Schnorr, conservation, ElGamal, Ed25519)
 - [x] Ethereum-compatible precompiles (ecRecover, SHA-256, BN254, ModExp)
-- [x] Native AA wallets (privacy-by-default balances)
+- [x] Native AA wallets (private-by-default balances)
 - [x] Paymaster gas abstraction
 - [x] SDK auto-shield flow
 - [x] Guest-side AA verification (SP1 Phase 7)
@@ -356,7 +356,7 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] WebAuthn wallet auth (P-256 passkeys precompile)
 - [x] SP1 proving pipeline
 - [x] Settlement contracts on zkSync Era
-- [x] Data availability (via zkSync Era → Ethereum L1)
+- [x] Data availability (via zkSync Era L2 → Ethereum L1)
 - [x] Persistent state storage (sled)
 - [x] Genesis config + chain ID (0xC0D13)
 - [x] Testnet faucet
@@ -364,9 +364,9 @@ C0DL3 maintains a bidirectional bridge to Fuego L1 for banking commitments. Brid
 - [x] Block explorer UI
 - [x] Docker image + docker-compose
 - [x] Live Era Sepolia settlement (ethers, dual-mode)
-- [x] Darkpool bridge — per-token denominations, anonymity set tracking (HEAT, ZK, CD, ETH)
+- [x] Darkpool bridge — per-token denominations, anonymity set tracking (HEAT, ZK, C0LD, ETH)
 - [x] Withdrawal tree root committed in SP1 proofs (BlockExecutionClaim)
-- [x] Bridge deposit → shielded pool wiring (auto-mint on block production)
+- [x] Bridge deposit → shielded pool (auto-mint on block production)
 
 ---
 
