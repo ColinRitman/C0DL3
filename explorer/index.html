@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C0DL3 Explorer</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --text: #e0e0e8;
+    --dim: #6b6b80;
+    --accent: #7c5cfc;
+    --green: #3ddc84;
+    --red: #ff4d6a;
+    --orange: #ff9f43;
+    --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+  header h1 span { color: var(--accent); }
+  .chain-badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+  }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  .status-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .stat-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+  .stat-card .value { font-family: var(--mono); font-size: 22px; font-weight: 600; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.accent { color: var(--accent); }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 400;
+  }
+  .badge-live { background: rgba(61,220,132,0.15); color: var(--green); }
+  .badge-mock { background: rgba(255,159,67,0.15); color: var(--orange); }
+
+  .block-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 100px 120px 160px;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .block-row:last-child { border-bottom: none; }
+  .block-row:hover { background: rgba(124,92,252,0.05); }
+  .block-height { color: var(--accent); font-weight: 600; cursor: pointer; }
+  .block-hash { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .block-txs { text-align: center; }
+  .block-gas { color: var(--dim); text-align: right; }
+  .block-time { color: var(--dim); text-align: right; font-size: 12px; }
+
+  .batch-row {
+    display: grid;
+    grid-template-columns: 60px 120px 100px 1fr 120px;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .batch-row:last-child { border-bottom: none; }
+  .batch-id { color: var(--accent); font-weight: 600; }
+  .status-settled { color: var(--green); }
+  .status-pending { color: var(--orange); }
+  .status-submitted { color: var(--accent); }
+  .status-failed { color: var(--red); }
+
+  .account-lookup { padding: 16px; display: flex; gap: 8px; }
+  .account-lookup input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+  }
+  .account-lookup input:focus { border-color: var(--accent); }
+  .account-lookup button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .account-result { padding: 0 16px 16px; font-family: var(--mono); font-size: 13px; }
+  .account-result pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 12px; }
+  .modal pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .modal-close {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 18px;
+  }
+
+  .empty { padding: 24px 16px; color: var(--dim); text-align: center; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>C0DL3</span> Explorer</h1>
+  <div class="chain-badge" id="chainBadge">loading...</div>
+</header>
+
+<main>
+  <div class="status-bar">
+    <div class="stat-card"><div class="label">Block Height</div><div class="value accent" id="blockHeight">--</div></div>
+    <div class="stat-card"><div class="label">Accounts</div><div class="value" id="totalAccounts">--</div></div>
+    <div class="stat-card"><div class="label">Settled Batches</div><div class="value green" id="settledBatches">--</div></div>
+    <div class="stat-card"><div class="label">Settlement</div><div class="value" id="settlementMode">--</div></div>
+    <div class="stat-card"><div class="label">State DB</div><div class="value" id="dbSize">--</div></div>
+    <div class="stat-card"><div class="label">Uptime</div><div class="value" id="uptime">--</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Recent Blocks</div>
+    <div id="blockList"><div class="empty">Loading blocks...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Settlement Batches <span class="badge" id="settlementBadge">--</span></div>
+    <div id="batchList"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Account Lookup</div>
+    <div class="account-lookup">
+      <input type="text" id="addrInput" placeholder="Address (e.g. 0xC0DL3_FAUCET_...01)" />
+      <button id="lookupBtn">Lookup</button>
+    </div>
+    <div class="account-result" id="accountResult"></div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="blockModal">
+  <div class="modal">
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <h2 id="modalTitle">Block #--</h2>
+    <pre id="modalBody"></pre>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+function $(id) { return document.getElementById(id); }
+
+async function api(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  return res.json();
+}
+
+async function rpc(method, params) {
+  const res = await fetch(API + '/rpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: params || [] }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.result;
+}
+
+function fmtTime(unix) {
+  if (!unix) return '--';
+  return new Date(unix * 1000).toLocaleTimeString();
+}
+
+function fmtDuration(secs) {
+  if (secs < 60) return secs + 's';
+  if (secs < 3600) return Math.floor(secs / 60) + 'm';
+  return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
+}
+
+function truncHash(h) {
+  if (!h || h.length < 16) return h || '--';
+  return h.slice(0, 10) + '...' + h.slice(-6);
+}
+
+function clearChildren(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function makeEl(tag, className, text) {
+  var el = document.createElement(tag);
+  if (className) el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+// ── Build block row with safe DOM methods ─────────────────────────
+
+function buildBlockRow(block) {
+  var hdr = block.header;
+  var row = makeEl('div', 'block-row');
+
+  var heightEl = makeEl('div', 'block-height', '#' + hdr.height);
+  heightEl.addEventListener('click', function() { showBlock(hdr.height); });
+  row.appendChild(heightEl);
+
+  var hashEl = makeEl('div', 'block-hash', truncHash(hdr.state_root));
+  hashEl.title = hdr.state_root || '';
+  row.appendChild(hashEl);
+
+  row.appendChild(makeEl('div', 'block-txs', block.transactions.length + ' txs'));
+  row.appendChild(makeEl('div', 'block-gas', hdr.gas_used.toLocaleString() + ' gas'));
+  row.appendChild(makeEl('div', 'block-time', fmtTime(hdr.timestamp)));
+
+  return row;
+}
+
+function buildBatchRow(b) {
+  var row = makeEl('div', 'batch-row');
+  var heights = b.block_heights || [];
+  var range = heights.length > 0
+    ? heights[0] + '-' + heights[heights.length - 1]
+    : '--';
+
+  row.appendChild(makeEl('div', 'batch-id', '#' + b.batch_id));
+  row.appendChild(makeEl('div', '', 'blocks ' + range));
+  row.appendChild(makeEl('div', 'status-' + b.status, b.status));
+
+  var txEl = makeEl('div', 'block-hash', truncHash(b.l2_tx_hash));
+  txEl.title = b.l2_tx_hash || '';
+  row.appendChild(txEl);
+
+  row.appendChild(makeEl('div', 'block-time', fmtTime(b.settled_at || b.created_at)));
+  return row;
+}
+
+// ── Refresh ──────────────────────────────────────────────────────
+
+async function refresh() {
+  try {
+    var chainId = await rpc('eth_chainId');
+    var chainDec = parseInt(chainId, 16);
+    $('chainBadge').textContent = 'Chain ' + chainDec + ' (0x' + chainDec.toString(16).toUpperCase() + ')';
+
+    var health = await api('/health');
+    var ns = health.node_state;
+    $('blockHeight').textContent = ns.current_height;
+    $('uptime').textContent = fmtDuration(ns.uptime_seconds);
+
+    try {
+      var storage = await api('/storage/status');
+      $('dbSize').textContent = storage.size_mb + ' MB';
+      $('totalAccounts').textContent = storage.accounts || '--';
+    } catch(e) {}
+
+    try {
+      var stl = await api('/settlement');
+      var s = stl.settlement;
+      $('settledBatches').textContent = s.settled;
+      var mode = s.mode || 'mock';
+      $('settlementMode').textContent = mode.toUpperCase();
+      var badge = $('settlementBadge');
+      badge.textContent = mode.toUpperCase();
+      badge.className = 'badge ' + (mode === 'live' ? 'badge-live' : 'badge-mock');
+    } catch(e) {}
+
+    await loadRecentBlocks(ns.current_height);
+    await loadBatches();
+  } catch(e) {
+    console.error('refresh failed:', e);
+  }
+}
+
+async function loadRecentBlocks(height) {
+  var container = $('blockList');
+  if (!height || height === 0) {
+    clearChildren(container);
+    container.appendChild(makeEl('div', 'empty', 'No blocks yet'));
+    return;
+  }
+
+  var start = Math.max(1, height - 19);
+  var fetches = [];
+  for (var h = height; h >= start; h--) {
+    fetches.push(api('/blocks/' + h).catch(function() { return null; }));
+  }
+  var blocks = (await Promise.all(fetches)).filter(Boolean);
+
+  clearChildren(container);
+  if (blocks.length === 0) {
+    container.appendChild(makeEl('div', 'empty', 'No blocks found'));
+    return;
+  }
+
+  for (var i = 0; i < blocks.length; i++) {
+    container.appendChild(buildBlockRow(blocks[i]));
+  }
+}
+
+async function loadBatches() {
+  var container = $('batchList');
+  try {
+    var data = await api('/settlement/batches');
+    var all = [].concat(data.settled || [], data.submitted || [], data.pending || []);
+
+    clearChildren(container);
+    if (all.length === 0) {
+      container.appendChild(makeEl('div', 'empty', 'No settlement batches yet'));
+      return;
+    }
+
+    for (var i = 0; i < all.length; i++) {
+      container.appendChild(buildBatchRow(all[i]));
+    }
+  } catch(e) {
+    clearChildren(container);
+    container.appendChild(makeEl('div', 'empty', 'Failed to load batches'));
+  }
+}
+
+async function showBlock(height) {
+  try {
+    var block = await api('/blocks/' + height);
+    $('modalTitle').textContent = 'Block #' + height;
+    $('modalBody').textContent = JSON.stringify(block, null, 2);
+    $('blockModal').classList.add('active');
+  } catch(e) {
+    // no-op
+  }
+}
+
+function closeModal() {
+  $('blockModal').classList.remove('active');
+}
+
+async function lookupAccount() {
+  var addr = $('addrInput').value.trim();
+  var container = $('accountResult');
+  if (!addr) return;
+
+  clearChildren(container);
+  container.appendChild(makeEl('span', '', 'Looking up...'));
+
+  try {
+    var balance = await rpc('eth_getBalance', [addr, 'latest']);
+    var nonce = await rpc('eth_getTransactionCount', [addr, 'latest']);
+    clearChildren(container);
+    var pre = makeEl('pre', '');
+    pre.textContent = JSON.stringify({
+      address: addr,
+      balance: balance,
+      balance_fwei: parseInt(balance, 16),
+      nonce: parseInt(nonce, 16),
+    }, null, 2);
+    container.appendChild(pre);
+  } catch(e) {
+    clearChildren(container);
+    var pre = makeEl('pre', 'error');
+    pre.textContent = 'Error: ' + e.message;
+    container.appendChild(pre);
+  }
+}
+
+// Event listeners
+$('lookupBtn').addEventListener('click', lookupAccount);
+$('addrInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') lookupAccount();
+});
+$('modalCloseBtn').addEventListener('click', closeModal);
+$('blockModal').addEventListener('click', function(e) {
+  if (e.target === $('blockModal')) closeModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+
+// Start polling
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

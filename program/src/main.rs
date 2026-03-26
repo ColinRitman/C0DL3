@@ -53,16 +53,18 @@ pub struct BlockExecutionClaim {
     pub total_gas_used: u64,
     pub note_tree_root: [u8; 32],
     pub nullifier_count: u32,
+    /// Bridge withdrawal tree root — committed so Era-side bridge can verify proofs.
+    pub withdrawal_tree_root: [u8; 32],
 }
 
 impl BlockExecutionClaim {
     /// Encode as deterministic bytes for SP1 public values commitment.
     /// Layout: block_height(8) || prev_state_root(32) || new_state_root(32)
     ///         || tx_merkle_root(32) || tx_count(4) || total_gas_used(8)
-    ///         || note_tree_root(32) || nullifier_count(4)
-    /// Total: 152 bytes
+    ///         || note_tree_root(32) || nullifier_count(4) || withdrawal_tree_root(32)
+    /// Total: 184 bytes
     pub fn encode(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(152);
+        let mut buf = Vec::with_capacity(184);
         buf.extend_from_slice(&self.block_height.to_le_bytes());
         buf.extend_from_slice(&self.prev_state_root);
         buf.extend_from_slice(&self.new_state_root);
@@ -71,6 +73,7 @@ impl BlockExecutionClaim {
         buf.extend_from_slice(&self.total_gas_used.to_le_bytes());
         buf.extend_from_slice(&self.note_tree_root);
         buf.extend_from_slice(&self.nullifier_count.to_le_bytes());
+        buf.extend_from_slice(&self.withdrawal_tree_root);
         buf
     }
 }
@@ -86,6 +89,41 @@ pub struct GuestTransaction {
     pub gas_price: u64,
     pub nonce: u64,
     pub data: Vec<u8>,
+}
+
+/// Guest-side UserOperation for AA wallet verification.
+///
+/// Minimal representation for in-circuit verification of AA transfers.
+/// The guest verifies: Schnorr auth, conservation, and knowledge proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestUserOperation {
+    pub sender: String,
+    pub nonce: u64,
+    pub to: String,
+    /// Sender's current (old) balance commitment.
+    pub sender_old_commitment: [u8; 32],
+    /// Sender's new balance commitment after transfer.
+    pub sender_new_commitment: [u8; 32],
+    /// Recipient's current (old) balance commitment.
+    pub recipient_old_commitment: [u8; 32],
+    /// Recipient's new balance commitment after transfer.
+    pub recipient_new_commitment: [u8; 32],
+    /// Pedersen commitment to the transfer amount.
+    pub amount_commitment: [u8; 32],
+    /// Knowledge proof for amount commitment.
+    pub knowledge_proof: privacy::CommitmentKnowledgeProof,
+    /// Schnorr signature R point (auth).
+    pub auth_signature_r: [u8; 32],
+    /// Schnorr signature s scalar (auth).
+    pub auth_signature_s: [u8; 32],
+    /// Sender's owner public key (Ristretto255).
+    pub sender_pubkey: [u8; 32],
+    /// Gas limit for this operation.
+    pub gas_limit: u64,
+    /// Gas price in fwei.
+    pub gas_price: u64,
+    /// Optional paymaster address.
+    pub paymaster: Option<String>,
 }
 
 /// Block input data fed to the guest via SP1Stdin.
@@ -104,6 +142,12 @@ pub struct GuestBlockInput {
     pub block_gas_limit: u64,
     /// Block timestamp (seconds since epoch).
     pub timestamp: u64,
+    /// AA UserOperations for this block.
+    #[serde(default)]
+    pub user_operations: Vec<GuestUserOperation>,
+    /// Bridge withdrawal tree root (from the bridge manager on the host).
+    #[serde(default)]
+    pub withdrawal_tree_root: [u8; 32],
 }
 
 // ── Main Entry Point ────────────────────────────────────────────────────────
@@ -202,7 +246,59 @@ pub fn main() {
         privacy::validate_shielded_block(&input.shielded, &input.prev_note_tree_root)
     };
 
-    // ═══ Phase 7: Commit public outputs ═══
+    // ═══ Phase 7: Verify AA UserOperations ═══
+    //
+    // Each UserOperation is verified inside the ZK circuit:
+    //   1. Schnorr auth: sender proves wallet ownership
+    //   2. Conservation: old_sender - new_sender == new_recipient - old_recipient
+    //   3. Knowledge proof: sender knows (amount, blinding) for amount_commitment
+    //
+    // This makes AA verification trustless — the sequencer's validation is
+    // "early rejection" only, the guest re-verifies everything.
+    let mut aa_gas_used: u64 = 0;
+    for (i, op) in input.user_operations.iter().enumerate() {
+        // 1. Verify Schnorr auth signature
+        let op_hash = compute_aa_op_hash(op);
+        assert!(
+            verify_schnorr_in_guest(
+                &op.sender_pubkey,
+                &op_hash,
+                &op.auth_signature_r,
+                &op.auth_signature_s,
+            ),
+            "AA op {}: invalid auth signature", i
+        );
+
+        // 2. Verify conservation: what sender lost = what recipient gained
+        assert!(
+            verify_aa_conservation(
+                &op.sender_old_commitment,
+                &op.sender_new_commitment,
+                &op.recipient_old_commitment,
+                &op.recipient_new_commitment,
+            ),
+            "AA op {}: conservation check failed", i
+        );
+
+        // 3. Verify knowledge proof for amount commitment
+        assert!(
+            privacy::verify_commitment_knowledge_proof(&op.knowledge_proof),
+            "AA op {}: invalid knowledge proof", i
+        );
+
+        // 4. Verify knowledge proof matches amount commitment
+        assert_eq!(
+            op.knowledge_proof.commitment, op.amount_commitment,
+            "AA op {}: knowledge proof commitment mismatch", i
+        );
+
+        // Accumulate gas for AA operations
+        // base(21k) + conservation(4k) + auth(3k) = 28k minimum
+        aa_gas_used += 28_000;
+    }
+    total_gas_used += aa_gas_used;
+
+    // ═══ Phase 8: Commit public outputs ═══
     //
     // The BlockExecutionClaim is the proof's public output. The host verifier
     // reconstructs the same claim from block data and checks it matches.
@@ -215,13 +311,14 @@ pub fn main() {
         total_gas_used,
         note_tree_root,
         nullifier_count,
+        withdrawal_tree_root: input.withdrawal_tree_root,
     };
 
     let encoded = claim.encode();
     assert_eq!(
         encoded.len(),
-        152,
-        "BlockExecutionClaim encoding must be exactly 152 bytes"
+        184,
+        "BlockExecutionClaim encoding must be exactly 184 bytes"
     );
 
     // Commit to SP1's public values — this is what the verifier checks against
@@ -285,4 +382,115 @@ fn compute_tx_merkle_root(txs: &[GuestTransaction]) -> [u8; 32] {
         current = next;
     }
     current[0]
+}
+
+// ── AA Verification Helpers ─────────────────────────────────────────────────
+//
+// These functions verify AA UserOperation fields inside the ZK circuit.
+// They must match the host-side implementations in `src/aa/` exactly.
+
+use curve25519_dalek_ng::{
+    constants::RISTRETTO_BASEPOINT_POINT as G,
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar,
+    traits::Identity,
+};
+
+/// Compute the hash of a GuestUserOperation for signature verification.
+///
+/// H("C0DL3:userop:" || sender || nonce || to || amount_commitment || ...)
+/// Must match host-side `compute_user_op_hash()` in `src/aa/validation.rs`.
+fn compute_aa_op_hash(op: &GuestUserOperation) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"C0DL3:userop:");
+    hasher.update(op.sender.as_bytes());
+    hasher.update(op.nonce.to_le_bytes());
+    hasher.update(op.to.as_bytes());
+    hasher.update(&op.amount_commitment);
+    hasher.update(&op.sender_new_commitment);
+    hasher.update(&op.recipient_new_commitment);
+    hasher.update(op.gas_limit.to_le_bytes());
+    hasher.update(op.gas_price.to_le_bytes());
+    if let Some(ref pm) = op.paymaster {
+        hasher.update(pm.as_bytes());
+    }
+    hasher.finalize().to_vec()
+}
+
+/// Verify a Schnorr signature inside the guest.
+///
+/// Checks: s*G == R + e*pubkey
+/// where e = H("C0DL3:schnorr:" || R || pubkey || message)
+///
+/// Must match host-side `schnorr_verify()` in `src/aa/schnorr.rs`.
+fn verify_schnorr_in_guest(
+    pubkey: &[u8; 32],
+    message: &[u8],
+    sig_r: &[u8; 32],
+    sig_s: &[u8; 32],
+) -> bool {
+    let pk_point = match CompressedRistretto(*pubkey).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+    let r_point = match CompressedRistretto(*sig_r).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+
+    // Challenge: e = H("C0DL3:schnorr:" || R || pubkey || message)
+    let mut hasher = Sha256::new();
+    hasher.update(b"C0DL3:schnorr:");
+    hasher.update(sig_r);
+    hasher.update(pubkey);
+    hasher.update(message);
+    let hash: [u8; 32] = hasher.finalize().into();
+    let e = Scalar::from_bytes_mod_order(hash);
+
+    let s = Scalar::from_bytes_mod_order(*sig_s);
+
+    // Verify: s*G == R + e*pubkey
+    let lhs = s * G;
+    let rhs = r_point + e * pk_point;
+
+    lhs == rhs
+}
+
+/// Verify Pedersen commitment conservation for an AA transfer.
+///
+/// Checks: (old_sender - new_sender) == (new_recipient - old_recipient)
+/// This means: what sender lost = what recipient gained.
+///
+/// Must match host-side `verify_conservation()` in `src/aa/validation.rs`.
+fn verify_aa_conservation(
+    old_sender: &[u8; 32],
+    new_sender: &[u8; 32],
+    old_recipient: &[u8; 32],
+    new_recipient: &[u8; 32],
+) -> bool {
+    let os = match CompressedRistretto(*old_sender).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+    let ns = match CompressedRistretto(*new_sender).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+    let or = match CompressedRistretto(*old_recipient).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+    let nr = match CompressedRistretto(*new_recipient).decompress() {
+        Some(p) => p,
+        None => return false,
+    };
+
+    // sender_delta = old_sender - new_sender (what sender lost)
+    // recipient_delta = new_recipient - old_recipient (what recipient gained)
+    let sender_delta = os - ns;
+    let recipient_delta = nr - or;
+
+    // Conservation: sender_delta == recipient_delta
+    let excess = sender_delta - recipient_delta;
+    excess == RistrettoPoint::identity()
 }

@@ -71,7 +71,7 @@ pub struct SpendProof {
 }
 
 /// The shielded pool: tracks all notes and spent nullifiers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShieldedPool {
     /// All notes (Merkle leaves), append-only
     pub notes: Vec<ShieldedNote>,
@@ -133,6 +133,13 @@ pub fn commit_with_blinding(amount: u64, blinding: &Scalar) -> [u8; 32] {
     amount_padded[..8].copy_from_slice(&amount.to_le_bytes());
     let v = Scalar::from_bytes_mod_order(amount_padded);
     PEDERSEN_GENS.commit(v, *blinding).compress().to_bytes()
+}
+
+/// Compute a Pedersen commitment from raw amount and blinding bytes.
+/// Used by the bridge module for deposit commitments.
+pub fn compute_pedersen_commitment(amount: u64, blinding_bytes: &[u8; 32]) -> [u8; 32] {
+    let r = Scalar::from_bytes_mod_order(*blinding_bytes);
+    commit_with_blinding(amount, &r)
 }
 
 // ──────────────────────────────────────────────
