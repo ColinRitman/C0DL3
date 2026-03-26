@@ -64,8 +64,8 @@
 
 ## HEAT Pricing Model
 
-### XFG Relationship
-- **1 XFG = $100**
+### XFG Relationship (Theoretically)
+- **if 1 XFG = $100**
 - **10M HEAT = $100**
 - **1 HEAT = $0.00001**
 
