@@ -94,6 +94,5 @@ The guest program (`program/src/main.rs`) proves:
 
 ## Rewards
 
-- **HEAT block subsidy** — fixed per block (halving schedule)
-- **Gas fees** — base fee portion routed to proving winner
-- First valid proof per block wins the reward
+- **Gas fees** — 69% of total block fees routed to proving winner
+- First valid proof per block wins reward
