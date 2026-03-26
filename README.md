@@ -1,4 +1,4 @@
-# <sup><sub>zk</sub></sup>`C0DL3`
+# <sup><sub>ZK</sub></sup>`C0DL3`
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
