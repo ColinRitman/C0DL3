@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Branch](https://img.shields.io/badge/branch-zkc0dl3-blueviolet.svg)](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3)
 
-**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the public zkSync ecosystem. Every account is an AA smart contract wallet allowing all balances to be private by default-- storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, C0LD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
+**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the public zkSync ecosystem. Every account is an AA smart contract wallet allowing all balances to be private by default-- storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination darkbridge pools (HEAT, ZK, C0LD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs generated via SP1 (RISC-V zkVM).
 
 ---
 
@@ -12,7 +12,7 @@
 
 ```
 User Wallet (SDK)
-    │ UserOperation (commitments + proofs, no plaintext amounts)
+    │ UserOperation (commitments + proofs instead of public/plaintext amounts)
     ▼
 Sequencer (C0DL3 node)
     │ Blind processing — sees only commitments
@@ -20,7 +20,7 @@ Sequencer (C0DL3 node)
 SP1 Prover
     │ Groth16 proof of block validity
     ▼
-zkSync Era (settlement) → Ethereum (L1)
+zkSync Era L2 (settlement) → Ethereum (L1)
 ```
 
 **Privacy layers:**
@@ -38,17 +38,17 @@ zkSync Era (settlement) → Ethereum (L1)
 
 ## Key Features
 
-### Privacy-by-Default Account Abstraction
+### Default Privacy by Account Abstraction
 Every account is a `PrivateWallet` contract storing `balanceCommitment` — a Pedersen commitment `C = amount*G + r*H`. The sequencer never sees plaintext balances. Wallet auth uses Schnorr signatures (Ristretto255). Gas is paid by paymasters to break the sender-gas link.
 
 ### Shielded Pool
-For full anonymity (hidden sender + recipient), the SDK auto-routes transfers through the shielded pool: shield → private transfer → delayed unshield. Commitments, nullifiers, Merkle membership proofs — nothing is revealed to the sequencer.
+For full anonymity (hidden sender + recipient + amount), the SDK auto-routes transfers through the shielded pool: shield → private transfer → delayed unshield. Commitments, nullifiers, Merkle membership proofs — nothing is revealed to the sequencer.
 
 ### Confidential Transactions
 Transfers using Pedersen commitments are verified by the conservation check precompile: `old_sender_commit - new_sender_commit == new_recipient_commit - old_recipient_commit`. Bulletproofs ensure amounts stay in `[0, 2^64)`.
 
 ### Precompile Suite
-C0DL3 ships privacy-native and Ethereum-compatible precompiles, all SP1-accelerated:
+C0DL3 ships both privacy-native and Ethereum-compatible precompiles, all SP1-accelerated:
 
 **Privacy primitives:**
 
@@ -86,7 +86,7 @@ BN254 ecPairing (0x0008) enables on-chain Groth16 ZK proof verification in any S
 
 ### Sovereign Prover
 
-C0DL3 uses a **sovereign prover model** — anyone with a GPU can prove blocks and earn HEAT rewards. No centralized prover network required.
+C0DL3 uses a **sovereign prover model** — anyone with a GPU can prove blocks and earn HEAT rewards.
 
 **Proof flow:**
 
@@ -99,7 +99,7 @@ C0DL3 uses a **sovereign prover model** — anyone with a GPU can prove blocks a
 6. Block hard-confirmed ─── proof batched for L2 settlement
 ```
 
-**Settlement path:** `L3 batch → SP1 Groth16 proof → COLDL3Settlement.sol on zkSync Era → Ethereum L1`
+**Settlement path:** `L3 batch → Groth16/PLONK proof → COLDL3Settlement.sol on zkSync Era L2 → Ethereum L1`
 
 **Proof modes:**
 
@@ -142,8 +142,8 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 │   ├── privacy/      Shielded pool, commitment proofs, stealth addresses
 │   ├── genesis/      Chain identity, testnet bootstrap, initial allocations
 │   ├── proving/      SP1 proof verification (real-proofs feature gate)
-│   ├── bridge/       Canonical bridge (Era ↔ C0DL3, withdrawal tree)
-│   ├── settlement/   L3→L2 batch settlement pipeline
+│   ├── bridge/       Canonical darkbridge (Era ↔ C0DL3, withdrawal tree)
+│   ├── settlement/   L3→L2→L1 batch settlement pipeline
 │   └── storage/      Persistent state (sled KV store)
 ├── program/          SP1 guest — zkVM block proof circuit
 │   ├── src/main.rs   Block verification phases (state, EVM, privacy, AA)
@@ -153,7 +153,7 @@ SP1 patches active: `sha2`, `curve25519-dalek-ng` (Ristretto255), `k256` (secp25
 │   ├── PrivateWallet.sol   AA wallet (Pedersen commitments)
 │   ├── Paymaster.sol       Gas payment abstraction
 │   ├── COLDL3Settlement.sol  L2 settlement (SP1 proof verification)
-│   └── C0DL3Bridge.sol       Canonical bridge (deposit pools, withdrawal proofs)
+│   └── C0DL3Bridge.sol       Canonical darkbridge (deposit pools, withdrawal proofs)
 ├── sdk/              Wallet SDK — proof builders, auto-shield, stealth, memos
 ├── prover/           Standalone SP1 prover node
 ├── explorer/         Minimal block explorer UI (served at /explorer)
