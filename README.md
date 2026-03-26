@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Branch](https://img.shields.io/badge/branch-zkc0dl3-blueviolet.svg)](https://github.com/ColinRitman/C0DL3/tree/zkc0dl3)
 
-**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the public zkSync ecosystem. Every account is an AA smart contract wallet allowing all balances to be private by default-- storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, COLD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
+**C0DL3** is a sovereign ZK privacy darkpool Layer-3 for the public zkSync ecosystem. Every account is an AA smart contract wallet allowing all balances to be private by default-- storing Pedersen commitments instead of plaintext values. A shielded pool provides full sender/recipient anonymity on demand. Fixed-denomination bridge pools (HEAT, ZK, C0LD, ETH) create anonymity sets at the privacy boundary. ZK validity proofs are generated via SP1 (RISC-V zkVM).
 
 ---
 
